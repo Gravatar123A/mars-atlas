@@ -34,5 +34,25 @@ body{background:radial-gradient(ellipse at 50% -30%,#283448 0%,var(--obsidian) 5
 .right-side{background:linear-gradient(155deg,#101a23,#0b131b)}.mission-overview{border-color:#456b73;border-radius:10px;background:linear-gradient(145deg,#193039,#122128);box-shadow:0 12px 26px #02060955}.mission-overview>strong{font-size:17px}.mission-overview p{color:#ffc37d;font-size:13px}.evidence-card{border-color:#3d5d68;border-radius:10px;background:linear-gradient(145deg,#172b35,#10202a);box-shadow:0 9px 20px #03070b40}.evidence-card h3{font-size:21px}.source-tabs{background:#0b151d;border:1px solid #304b58;border-radius:8px}.source-tabs button.active{background:linear-gradient(135deg,#2d5961,#284055);color:#effaf7}.site-card{border-color:#385767;border-radius:9px;background:linear-gradient(145deg,#172a34,#112029)}.site-card:hover{border-color:#61808d;transform:translateY(-2px)}.science-card{padding:13px;border:1px solid #453e3b;border-radius:9px;background:linear-gradient(135deg,#25201d,#192630)}.trust-note{border-color:#7b593e;background:linear-gradient(135deg,#30251f,#202126)}
 @keyframes route-trace{to{stroke-dashoffset:-160}}
 @media(max-width:1250px){.workspace{grid-template-columns:288px minmax(360px,1fr) 310px}.view-mode button{padding:6px 6px}.map-topline{padding:0 12px}.terrain-legend{max-width:260px}.terrain-legend small{display:none}}
+
+/* Give the measured terrain the primary workspace area. Evidence opens on demand. */
+.workspace{position:relative;grid-template-columns:300px minmax(0,1fr);overflow:hidden}
+.main-area{overflow-y:auto;scrollbar-color:#435359 transparent;scrollbar-width:thin}
+.map{flex:none;height:calc(100vh - 132px);min-height:500px}
+.right-side{position:absolute;z-index:20;right:0;top:0;bottom:0;width:min(390px,calc(100% - 300px));transform:translateX(105%);transition:transform 220ms ease;box-shadow:-16px 0 45px #02070bc7}
+.workspace.inspector-open .right-side{transform:translateX(0)}
+.inspector-toggle,.inspector-close{border:1px solid #486775;background:#1b3440;color:#d7f2ed;border-radius:6px;font-size:10px;font-weight:700;padding:8px 11px;white-space:nowrap}
+.inspector-toggle:hover,.inspector-close:hover{background:#28505a}
+.inspector-close{float:right;font-size:17px;line-height:1;padding:4px 9px;margin:-5px 0 12px 10px}
+.terrain-scope{display:flex;gap:3px;margin-top:4px}
+.terrain-scope button{font-size:9px;padding:6px 8px}
+.terrain-scope button.active{background:#32626a;border-color:#87cdd0;color:#fff}
+.terrain-scope button:disabled{opacity:.45;cursor:wait}
+.terrain-legend a{font-size:9px;color:#9bd3d5;margin-top:2px}
+.map-controls button:disabled{opacity:.42;cursor:wait}
+.map.terrain-active{cursor:default}
+.map.terrain-active.dragging-terrain{cursor:grabbing}
+@media(max-width:980px){.workspace{grid-template-columns:260px minmax(0,1fr);grid-template-rows:none}.right-side{grid-column:auto;width:min(390px,calc(100% - 260px));border-top:0}.main-area{min-height:0}.map{height:calc(100vh - 132px);min-height:470px}.right-side .panel-scroll{display:block;overflow:auto}.right-side .panel-scroll>*{grid-column:auto}}
+@media(max-width:700px){.shell{height:auto;min-height:100vh;overflow:visible}.workspace{display:flex;flex-direction:column;overflow:visible}.main-area{min-height:0;overflow:visible}.map{height:68vh;min-height:430px}.right-side{position:fixed;top:0;bottom:0;width:min(390px,100vw);z-index:30}.map-topline{gap:7px;flex-wrap:wrap;height:auto;min-height:55px;padding:7px 10px}.map-live{display:none}.terrain-legend{left:9px;bottom:10px;max-width:calc(100% - 70px);gap:6px;padding:8px}.terrain-legend small{display:block}.terrain-scope button{padding:5px}.map-badge{display:none}}
 @media(max-width:700px){.topbar{height:62px;padding:0 14px}.map-topline{height:44px}.map-live{font-size:8px}.view-mode{margin-left:auto}.map-topline>#cursorCoords{display:none}.terrain-legend{left:12px;bottom:14px;padding:9px;gap:8px}.terrain-legend strong{font-size:11px}.terrain-legend button{padding:6px}.route-cards{height:auto;min-height:168px}.route-card strong{font-size:23px}}
 .terrain-active #focusRoute{display:none}.view-mode button:disabled{opacity:.45;cursor:wait}.terrain-legend #terrainColorNote{color:#e3b58d}

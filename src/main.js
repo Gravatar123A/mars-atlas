@@ -21,6 +21,7 @@ const MAP_LAYERS = {
 
 const state = {
   grid: null,
+  regionalGrid: null,
   center: { lat: 18.458, lon: 77.430 },
   zoom: 9,
   basemap: 'ctx',
@@ -40,6 +41,8 @@ const state = {
   activeEvidence: 'dem',
   viewMode: 'map',
   terrainMesh: null,
+  regionalMesh: null,
+  terrainScope: 'local',
   terrainView: { yaw: -0.72, pitch: 0.82, zoom: 1, exaggeration: 6 },
   terrainPointer: null,
   terrainFrame: null,
@@ -106,31 +109,32 @@ app.innerHTML = `
         </div>
       </aside>
       <main class="main-area">
-        <div class="map-topline"><span class="map-live"><span class="signal-dot"></span> JEZERO / OBSERVATION SPACE</span><div class="view-mode" role="group" aria-label="Terrain view"><button class="active" data-view="map" aria-pressed="true">2D imagery</button><button data-view="terrain" aria-pressed="false" disabled>3D elevation</button></div><span id="cursorCoords">18.45800°N / 77.43000°E</span></div>
+        <div class="map-topline"><span class="map-live"><span class="signal-dot"></span> JEZERO / OBSERVATION SPACE</span><div class="view-mode" role="group" aria-label="Terrain view"><button class="active" data-view="map" aria-pressed="true">2D imagery</button><button data-view="terrain" aria-pressed="false" disabled>3D elevation</button></div><button id="toggleInspector" class="inspector-toggle" aria-expanded="false" aria-controls="sourceInspector">Evidence & analysis</button><span id="cursorCoords">18.45800°N / 77.43000°E</span></div>
         <div id="map" class="map" tabindex="0" aria-label="Interactive Jezero Crater map. Use arrow keys to pan and plus or minus to zoom.">
           <div id="tileLayers" class="tile-layers"></div>
           <canvas id="terrain3d" class="terrain-canvas" role="img" aria-label="Three dimensional elevation rendering of the verified CTX terrain grid" hidden></canvas>
           <svg id="routeOverlay" class="route-overlay" aria-hidden="true"></svg>
           <div class="map-vignette"></div>
-          <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Fit measured terrain">⌖</button><button id="focusRoute" aria-label="Focus route endpoints">↗</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
+          <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Fit route terrain">⌖</button><button id="fitRegion" aria-label="Explore wider Jezero region in 2D" title="Explore wider Jezero region in 2D" disabled>◈</button><button id="focusRoute" aria-label="Focus route endpoints">↗</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
           <div class="map-badge">MARS / JEZERO <span>·</span> PLANETOCENTRIC · EAST POSITIVE</div>
           <div class="scale-box"><div id="scaleLine"></div><span id="scaleText">—</span></div>
           <div class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">CTX DEM MEASURED AREA</span> <span class="coverage-fill"></span> NUMERIC ELEVATION</div>
-          <div id="terrain3dLegend" class="terrain-legend" hidden><div><span class="terrain-mode-chip">3D / CTX DEM</span><strong>Measured terrain</strong><small id="terrainMeshNote">Drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
+          <div id="terrain3dLegend" class="terrain-legend" hidden><div><span class="terrain-mode-chip">3D / CTX DEM</span><strong id="terrainScopeTitle">Measured terrain</strong><small id="terrainMeshNote">Left drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small><div class="terrain-scope" role="group" aria-label="3D terrain area"><button data-scope="local" class="active" aria-pressed="true">Landing area</button><button data-scope="regional" aria-pressed="false" disabled>Jezero region</button></div><a id="terrainSourceLink" href="https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/index.html" target="_blank" rel="noopener">USGS terrain source ↗</a></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
           <div id="mapAttribution" class="map-attribution">Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS</div>
         </div>
         <div class="results-bar"><div class="results-title"><span class="section-eyebrow">04 / ROUTE COMPARISON</span><h2>Decision engine <span id="routeCount" class="route-count">0 routes</span></h2></div><div id="comparisonNote" class="comparison-note">Compute routes to compare distance and terrain trade-offs.</div></div>
         <div id="routeCards" class="route-cards"></div>
       </main>
-      <aside class="side right-side">
+      <aside class="side right-side" id="sourceInspector" aria-hidden="true" inert>
         <div class="panel-scroll">
+          <button id="closeInspector" class="inspector-close" aria-label="Close evidence and analysis">×</button>
           <div class="section-eyebrow">MISSION / OVERVIEW</div>
           <div id="missionOverview" class="mission-overview"></div>
           <div class="divider"></div>
           <div class="section-eyebrow">EVIDENCE / SOURCE INSPECTOR</div>
           <h2>Know what the map knows<span class="title-period">.</span></h2>
           <p class="side-intro">Every number in the route model begins with an identified dataset or a stated assumption.</p>
-          <div class="source-tabs"><button data-evidence="dem" class="active">Terrain</button><button data-evidence="ctx">Imagery</button><button data-evidence="themis">Thermal</button></div>
+          <div class="source-tabs"><button data-evidence="dem" class="active">Route DEM</button><button data-evidence="regional">Regional DEM</button><button data-evidence="ctx">Imagery</button><button data-evidence="themis">Thermal</button></div>
           <div id="evidenceCard"></div>
           <div class="divider"></div>
           <div class="section-eyebrow">CURRENT ROUTE / ANALYSIS</div>
@@ -189,13 +193,21 @@ function fitPoints(points, fill = .78) {
   drawTiles();
 }
 
-function fitCoverage() {
-  if (!state.grid) return;
-  const grid = state.grid;
+function fitGrid(grid) {
+  if (!grid) return;
   fitPoints([
     { lat: grid.northCenterLat + grid.degreesPerPixelLat / 2, lon: grid.westCenterLon - grid.degreesPerPixelLon / 2 },
     { lat: grid.northCenterLat - (grid.height - .5) * grid.degreesPerPixelLat, lon: grid.westCenterLon + (grid.width - .5) * grid.degreesPerPixelLon },
   ]);
+}
+function fitCoverage() { fitGrid(state.grid); }
+
+function fitRegion() {
+  if (!state.regionalGrid) return;
+  state.basemap = 'mola';
+  document.querySelector('input[name="basemap"][value="mola"]').checked = true;
+  setViewMode('map');
+  fitGrid(state.regionalGrid);
 }
 
 function focusRoute() {
@@ -256,8 +268,7 @@ function buildTerrainMesh(grid) {
   for (const row of rows) for (const col of columns) {
     const elevation = grid.elevationsMeters[row * grid.width + col];
     samples.push({ row, col, elevation });
-    minimum = Math.min(minimum, elevation);
-    maximum = Math.max(maximum, elevation);
+    if (Number.isFinite(elevation)) { minimum = Math.min(minimum, elevation); maximum = Math.max(maximum, elevation); }
   }
   const span = Math.max(1, maximum - minimum);
   const longestSide = Math.max(grid.width, grid.height);
@@ -273,17 +284,21 @@ function buildTerrainMesh(grid) {
   const count = columns.length;
   for (let row = 0; row < rows.length - 1; row++) for (let col = 0; col < columns.length - 1; col++) {
     const a = row * count + col, b = a + 1, c = a + count, d = c + 1;
-    faces.push([a, c, b], [b, c, d]);
+    if ([a, c, b].every((index) => Number.isFinite(vertices[index].elevation))) faces.push([a, c, b]);
+    if ([b, c, d].every((index) => Number.isFinite(vertices[index].elevation))) faces.push([b, c, d]);
   }
   return { vertices, faces, minimum, maximum, span, xScale, zScale, stride };
 }
 
 function terrainPosition(point) {
-  const grid = state.grid;
-  const mesh = state.terrainMesh;
+  const grid = activeTerrainGrid();
+  const mesh = activeTerrainMesh();
   const col = Math.max(0, Math.min(grid.width - 1, Math.round((point.lon - grid.westCenterLon) / grid.degreesPerPixelLon)));
   const row = Math.max(0, Math.min(grid.height - 1, Math.round((grid.northCenterLat - point.lat) / grid.degreesPerPixelLat)));
-  const elevation = grid.elevationsMeters[row * grid.width + col];
+  const localIndex = state.grid && cellAt(state.grid, point);
+  const localElevation = localIndex !== null ? state.grid.elevationsMeters[localIndex] : NaN;
+  const sampledElevation = grid.elevationsMeters[row * grid.width + col];
+  const elevation = Number.isFinite(localElevation) ? localElevation : Number.isFinite(sampledElevation) ? sampledElevation : mesh.minimum;
   return {
     x: ((col / (grid.width - 1)) * 2 - 1) * mesh.xScale,
     z: ((row / (grid.height - 1)) * 2 - 1) * mesh.zScale,
@@ -350,7 +365,7 @@ function drawTerrainMarker(ctx, width, height, point, color, label) {
 
 function renderTerrain3d() {
   state.terrainFrame = null;
-  if (state.viewMode !== 'terrain' || !state.terrainMesh || !state.grid) return;
+  if (state.viewMode !== 'terrain' || !activeTerrainMesh() || !activeTerrainGrid()) return;
   const canvas = $('#terrain3d');
   const map = $('#map');
   const ratio = Math.min(window.devicePixelRatio || 1, 2);
@@ -363,7 +378,7 @@ function renderTerrain3d() {
   const background = ctx.createLinearGradient(0, 0, width, height);
   background.addColorStop(0, '#071018'); background.addColorStop(.5, '#101f2a'); background.addColorStop(1, '#2c1c1a');
   ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
-  const mesh = state.terrainMesh;
+  const mesh = activeTerrainMesh();
   const projected = mesh.vertices.map((vertex) => projectTerrain(vertex, width, height));
   const ordered = mesh.faces.map(([a, b, c]) => ({ a, b, c, depth: (projected[a].depth + projected[b].depth + projected[c].depth) / 3 })).sort((left, right) => left.depth - right.depth);
   for (const face of ordered) {
@@ -397,13 +412,37 @@ function renderTerrain3d() {
 }
 
 function scheduleTerrainRender() {
-  if (state.viewMode !== 'terrain' || !state.terrainMesh || state.terrainFrame) return;
+  if (state.viewMode !== 'terrain' || !activeTerrainMesh() || state.terrainFrame) return;
   state.terrainFrame = requestAnimationFrame(renderTerrain3d);
+}
+
+function activeTerrainGrid() { return state.terrainScope === 'regional' && state.regionalGrid ? state.regionalGrid : state.grid; }
+function activeTerrainMesh() { return state.terrainScope === 'regional' && state.regionalMesh ? state.regionalMesh : state.terrainMesh; }
+
+function setTerrainScope(scope) {
+  if (scope === 'regional' && !state.regionalMesh) return;
+  state.terrainScope = scope;
+  const grid = activeTerrainGrid(), mesh = activeTerrainMesh();
+  $('#terrainScopeTitle').textContent = scope === 'regional' ? 'Jezero regional terrain' : 'Landing-area terrain';
+  $('#terrainMeshNote').textContent = `Left drag to orbit · ${(mesh.stride * grid.resolutionMeters).toLocaleString()} m visual samples · vertical scale 6×`;
+  $('#terrainColorNote').textContent = `Elevation tint: ${Math.round(mesh.minimum).toLocaleString()} to ${Math.round(mesh.maximum).toLocaleString()} m · no photo texture`;
+  $('#terrainSourceLink').href = grid.productPage;
+  document.querySelectorAll('[data-scope]').forEach((button) => { const active = button.dataset.scope === scope; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
+  resetTerrainView();
 }
 
 function resetTerrainView() {
   state.terrainView = { yaw: -0.72, pitch: 0.82, zoom: 1, exaggeration: 6 };
   scheduleTerrainRender();
+}
+
+function updateCoverageInfo() {
+  if (!state.grid) return;
+  const local = state.grid;
+  const widthKm = local.width * local.resolutionMeters / 1000;
+  const heightKm = local.height * local.resolutionMeters / 1000;
+  const regional = state.regionalGrid;
+  $('#coverageInfo').innerHTML = `Measured CTX route terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(local.width * local.height).toLocaleString()} cells. ${state.viewMode === 'terrain' ? 'Switch to 2D to select points.' : 'Use ⌖ to fit the route footprint or ↗ to focus your route.'}${regional ? `<br>Broader Jezero CTX DEM: ${(regional.width * regional.resolutionMeters / 1000).toFixed(1)} × ${(regional.height * regional.resolutionMeters / 1000).toFixed(1)} km. Source cells are 20 m; the regional package samples at 80 m, with a coarser visual mesh. Use ◈ for 2D overview or Jezero region in 3D. Routes use the 20 m landing grid.` : ''}`;
 }
 
 function setViewMode(mode) {
@@ -419,11 +458,7 @@ function setViewMode(mode) {
   document.querySelectorAll('[data-view]').forEach((button) => { const active = button.dataset.view === mode; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
   $('#cursorCoords').textContent = terrain ? '3D elevation / CTX DEM' : `${fmt.coord(state.center.lat)}°N / ${fmt.coord(state.center.lon)}°E`;
   $('#mapAttribution').textContent = terrain ? 'Terrain: USGS MRO / CTX DEM · sampled visual mesh' : 'Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS';
-  if (state.grid) {
-    const widthKm = state.grid.width * state.grid.resolutionMeters / 1000;
-    const heightKm = state.grid.height * state.grid.resolutionMeters / 1000;
-    $('#coverageInfo').textContent = `Measured CTX terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(state.grid.width * state.grid.height).toLocaleString()} cells. ${terrain ? 'Switch to 2D to select points and inspect the map.' : 'Use ⌖ to fit the full footprint or ↗ to focus your route.'}`;
-  }
+  updateCoverageInfo();
   drawOverlay();
   scheduleTerrainRender();
 }
@@ -709,6 +744,9 @@ function evidence(key) {
   if (key === 'dem') {
     const sourceHash = state.grid?.sourceSha256 ? `${state.grid.sourceSha256.slice(0, 12)}…` : 'Recorded in terrain metadata';
     card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED NUMERICAL DATA</div><h3>CTX elevation mosaic</h3><p>USGS terrain model created from MRO Context Camera observations for Mars 2020 terrain relative navigation.</p><dl><div><dt>MISSION / INSTRUMENT</dt><dd>MRO · Context Camera</dd></div><div><dt>NATIVE GRID</dt><dd>20 m per cell</dd></div><div><dt>PRODUCT</dt><dd>JEZ_ctx_B_soc_008_DTM…</dd></div><div><dt>REFERENCE</dt><dd>East-positive, planetocentric; 3,396,190 m sphere</dd></div><div><dt>SOURCE SHA-256</dt><dd title="${state.grid?.sourceSha256 || ''}">${sourceHash}</dd></div><div><dt>PACKAGE CHECK</dt><dd>Verified before routing</dd></div></dl><div class="evidence-limit"><strong>What it supports</strong><p>Regional elevation differences and modelled slopes at cell scale. It cannot reveal every rock, soft soil patch or EVA hazard.</p></div><a href="${state.grid?.productPage || 'https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_ctx_dtm_mosaic'}" target="_blank" rel="noopener">View USGS source ↗</a></div>`;
+  } else if (key === 'regional') {
+    const regional = state.regionalGrid;
+    card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED REGIONAL ELEVATION</div><h3>Jezero CTX science mosaic</h3><p>USGS/JPL mosaic derived from MRO Context Camera stereo images. The source spans about 89 × 101 km at 20 m pixel spacing.</p><dl><div><dt>MISSION / INSTRUMENT</dt><dd>MRO · Context Camera</dd></div><div><dt>SOURCE GRID</dt><dd>4,456 × 5,067 · 20 m</dd></div><div><dt>APP PACKAGE</dt><dd>80 m measured samples</dd></div><div><dt>VALID SAMPLES</dt><dd>${regional ? regional.validCells.toLocaleString() : 'Loading…'}</dd></div><div><dt>SOURCE SHA-256</dt><dd title="${regional?.sourceSha256 || ''}">${regional ? `${regional.sourceSha256.slice(0, 12)}…` : 'Recorded in metadata'}</dd></div><div><dt>PACKAGE CHECK</dt><dd>${regional ? 'Verified before rendering' : 'Loading…'}</dd></div></dl><div class="evidence-limit"><strong>What it supports</strong><p>Broader measured topographic context. The display mesh is coarser still; route calculations remain within the 20 m landing-area grid.</p></div><a href="${regional?.productPage || 'https://astrogeology.usgs.gov/search/map/mars_2020_science_investigation_ctx_dem_mosaic'}" target="_blank" rel="noopener">View USGS source ↗</a></div>`;
   } else {
     const layer = MAP_LAYERS[key];
     card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED ORBITAL PRODUCT</div><h3>${escapeHtml(layer.title)}</h3><p>Displayed through NASA Mars Trek WMTS. This visual layer is separate from the numerical terrain grid used for routing.</p><dl><div><dt>MISSION</dt><dd>${escapeHtml(layer.mission)}</dd></div><div><dt>INSTRUMENT</dt><dd>${escapeHtml(layer.instrument)}</dd></div><div><dt>RESOLUTION</dt><dd>${escapeHtml(layer.resolution)}</dd></div></dl><div class="evidence-limit"><strong>Interpretation limit</strong><p>${escapeHtml(layer.limitation)}</p></div><a href="${layer.link}" target="_blank" rel="noopener">View NASA layer catalog ↗</a></div>`;
@@ -799,9 +837,22 @@ $('#hiriseOpacity').addEventListener('input', (e) => { state.hiriseOpacity = Num
 $('#themisOpacity').addEventListener('input', (e) => { state.themisOpacity = Number(e.target.value) / 100; $('#themisOpacityLabel').textContent = `${e.target.value}%`; drawTiles(); });
 document.querySelectorAll('[data-evidence]').forEach((button) => button.addEventListener('click', () => evidence(button.dataset.evidence)));
 document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setViewMode(button.dataset.view)));
+document.querySelectorAll('[data-scope]').forEach((button) => button.addEventListener('click', () => setTerrainScope(button.dataset.scope)));
+function setInspectorOpen(open) {
+  $('.workspace').classList.toggle('inspector-open', open);
+  $('#sourceInspector').toggleAttribute('inert', !open);
+  $('#sourceInspector').setAttribute('aria-hidden', String(!open));
+  $('#toggleInspector').setAttribute('aria-expanded', String(open));
+  if (open) $('#closeInspector').focus();
+  else $('#toggleInspector').focus();
+}
+$('#toggleInspector').addEventListener('click', () => setInspectorOpen(!$('.workspace').classList.contains('inspector-open')));
+$('#closeInspector').addEventListener('click', () => setInspectorOpen(false));
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && $('.workspace').classList.contains('inspector-open')) setInspectorOpen(false); });
 $('#zoomIn').addEventListener('click', () => zoom(1));
 $('#zoomOut').addEventListener('click', () => zoom(-1));
 $('#resetMap').addEventListener('click', () => state.viewMode === 'terrain' ? resetTerrainView() : fitCoverage());
+$('#fitRegion').addEventListener('click', fitRegion);
 $('#focusRoute').addEventListener('click', () => state.viewMode === 'terrain' ? resetTerrainView() : focusRoute());
 $('#resetTerrain').addEventListener('click', resetTerrainView);
 $('#fullscreenMap').addEventListener('click', async () => {
@@ -815,9 +866,10 @@ $('#fullscreenMap').addEventListener('click', async () => {
 const map = $('#map');
 map.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
 map.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('button')) return;
+  if (e.target.closest('button') || e.button !== 0) return;
   if (state.viewMode === 'terrain') {
     state.terrainPointer = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: state.terrainView.yaw, pitch: state.terrainView.pitch };
+    map.classList.add('dragging-terrain');
     map.setPointerCapture(e.pointerId);
     return;
   }
@@ -828,6 +880,7 @@ map.addEventListener('pointermove', (e) => {
   if (state.viewMode === 'terrain') {
     $('#cursorCoords').textContent = '3D elevation / CTX DEM';
     if (!state.terrainPointer || state.terrainPointer.id !== e.pointerId) return;
+    if (e.pointerType === 'mouse' && !(e.buttons & 1)) { state.terrainPointer = null; map.classList.remove('dragging-terrain'); return; }
     state.terrainView.yaw = state.terrainPointer.yaw + (e.clientX - state.terrainPointer.x) * .009;
     state.terrainView.pitch = Math.min(1.22, Math.max(.28, state.terrainPointer.pitch + (e.clientY - state.terrainPointer.y) * .007));
     scheduleTerrainRender();
@@ -846,12 +899,20 @@ map.addEventListener('pointermove', (e) => {
 });
 map.addEventListener('pointerup', (e) => {
   if (state.viewMode === 'terrain') {
-    if (state.terrainPointer?.id === e.pointerId) state.terrainPointer = null;
+    if (state.terrainPointer?.id === e.pointerId) { state.terrainPointer = null; map.classList.remove('dragging-terrain'); }
     return;
   }
   if (!state.pointer || state.pointer.id !== e.pointerId) return;
   if (!state.pointer.moved) { const rect = map.getBoundingClientRect(); setPoint(state.pick, fromScreen(e.clientX - rect.left, e.clientY - rect.top)); }
   state.pointer = null;
+});
+map.addEventListener('pointercancel', (e) => {
+  if (state.terrainPointer?.id === e.pointerId) { state.terrainPointer = null; map.classList.remove('dragging-terrain'); }
+  if (state.pointer?.id === e.pointerId) state.pointer = null;
+});
+map.addEventListener('lostpointercapture', (e) => {
+  if (state.terrainPointer?.id === e.pointerId) { state.terrainPointer = null; map.classList.remove('dragging-terrain'); }
+  if (state.pointer?.id === e.pointerId) state.pointer = null;
 });
 map.addEventListener('keydown', (e) => {
   if (state.viewMode === 'terrain') {
@@ -895,12 +956,11 @@ fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((re
   if (grid.elevationsMeters.length !== grid.width * grid.height) throw new Error('Terrain grid has inconsistent dimensions');
   state.grid = grid;
   state.terrainMesh = buildTerrainMesh(grid);
-  $('#terrainMeshNote').textContent = `Drag to orbit · ${(state.terrainMesh.stride * grid.resolutionMeters).toLocaleString()} m visual samples · vertical scale 6×`;
-  $('#terrainColorNote').textContent = `Elevation tint: ${Math.round(state.terrainMesh.minimum).toLocaleString()} to ${Math.round(state.terrainMesh.maximum).toLocaleString()} m · no photo texture`;
+  setTerrainScope('local');
   document.querySelector('[data-view="terrain"]').disabled = false;
   const widthKm = grid.width * grid.resolutionMeters / 1000;
   const heightKm = grid.height * grid.resolutionMeters / 1000;
-  $('#coverageInfo').textContent = `Measured CTX terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(grid.width * grid.height).toLocaleString()} cells. Use ⌖ to fit the full footprint or ↗ to focus your route.`;
+  updateCoverageInfo();
   $('#coverageKeyText').textContent = `CTX DEM · ${Math.round(widthKm)} × ${Math.round(heightKm)} KM`;
   renderScenarios();
   renderSites();
@@ -913,3 +973,22 @@ fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((re
   setStatus(`Numerical terrain unavailable: ${error.message}. Routing is disabled.`, 'error');
   $('#calculateBtn').disabled = true;
 });
+
+fetch(new URL('../public/data/jezero-regional-meta.json', import.meta.url)).then((response) => {
+  if (!response.ok) throw new Error(`HTTP ${response.status}`);
+  return response.json();
+}).then(async (metadata) => {
+  const response = await fetch(new URL(`../public/data/${metadata.elevationFile}`, import.meta.url));
+  if (!response.ok) throw new Error(`Regional elevation file HTTP ${response.status}`);
+  const buffer = await response.arrayBuffer();
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buffer)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  if (hash !== metadata.elevationSha256) throw new Error('Regional elevation checksum mismatch');
+  return decodeTerrain(metadata, buffer);
+}).then((grid) => {
+  state.regionalGrid = grid;
+  state.regionalMesh = buildTerrainMesh(grid);
+  document.querySelector('[data-scope="regional"]').disabled = false;
+  $('#fitRegion').disabled = false;
+  updateCoverageInfo();
+  if (state.activeEvidence === 'regional') evidence('regional');
+}).catch((error) => { console.warn(`Regional terrain unavailable: ${error.message}`); });

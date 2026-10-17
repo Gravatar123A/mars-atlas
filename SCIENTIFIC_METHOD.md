@@ -26,7 +26,9 @@ The time estimate is `distance / assumed walking speed`; default speed is 0.75 m
 
 ## Three-dimensional view
 
-The 3D surface uses the same checksum-verified CTX DEM. For interactive rendering, it samples the source grid at 320 m intervals and draws triangles between those samples. Horizontal coordinates come from the source 20 m projected grid; vertical coordinates come from the sampled elevations. Height is intentionally displayed at **6×** its physical scale so regional relief remains visible in the small viewport. The terrain colors are a designed elevation tint, not orbital photography or mineral data. The 3D route line uses the full-resolution route points. All distance, ascent, and slope calculations remain based on the 20 m grid, independently of the visual mesh.
+The landing-area 3D surface uses the same checksum-verified CTX DEM as routing. For interactive rendering, it samples the source grid at 320 m intervals and draws triangles between those samples. The separate regional 3D surface uses the USGS/JPL Jezero science-investigation CTX DEM, which covers about 89 × 101 km. Its source is 20 m; every fourth source pixel is packaged as an 80 m context grid, and the visual mesh samples that package at about 1 km intervals. No source no-data values are filled. The regional raster uses an 18.4663° standard parallel; longitude conversion accounts for that cosine factor. Each packaged file has a verified SHA-256 before rendering.
+
+Height is intentionally displayed at **6×** its physical scale. The terrain colors are a designed elevation tint, not orbital photography or mineral data. The 3D route line uses full-resolution route coordinates and the original 20 m elevation samples. All distance, ascent, and slope calculations remain based on the landing-area 20 m grid. The regional surface provides context and does not claim additional route coverage.
 
 ## Validation and uncertainty
 

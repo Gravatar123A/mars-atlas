@@ -10,6 +10,8 @@ const grid = decodeTerrain(metadata, encoded.buffer.slice(encoded.byteOffset, en
 const landing = { lat: 18.44463, lon: 77.45088 };
 const hogwallow = { lat: 18.44272865, lon: 77.38228798 };
 const sol426 = { lat: 18.42416332, lon: 77.42524624 };
+const regionalMetadata = JSON.parse(readFileSync(new URL('../public/data/jezero-regional-meta.json', import.meta.url)));
+const regionalEncoded = readFileSync(new URL('../public/data/jezero-regional-u16.bin', import.meta.url));
 
 test('terrain metadata preserves the verified NASA/USGS source identity', () => {
   assert.equal(metadata.sourceId, 'JEZ_ctx_B_soc_008_DTM_MOLAtopography_DeltaGeoid_20m_Eqc_latTs0_lon0');
@@ -25,6 +27,23 @@ test('terrain metadata preserves the verified NASA/USGS source identity', () => 
 test('Mars distance uses the source radius', () => {
   const expected = grid.radiusMeters * Math.PI / 180;
   assert.ok(Math.abs(distanceMeters({ lat: 0, lon: 0 }, { lat: 1, lon: 0 }, grid.radiusMeters) - expected) < 1e-6);
+});
+
+test('broader measured Jezero DEM is verified and includes the landing area', () => {
+  assert.equal(regionalMetadata.sourceId, 'M20_JezeroCrater_CTXDEM_20m');
+  assert.equal(regionalMetadata.sourceSha256, 'ba7f706ea1b5d63a562f28a7dcf7a7f3c79bce7f048e6974b57e8a33c30d1ba2');
+  assert.equal(regionalMetadata.sourceResolutionMeters, 20);
+  assert.equal(regionalMetadata.resolutionMeters, 80);
+  assert.ok(regionalMetadata.width * regionalMetadata.resolutionMeters > 89000);
+  assert.ok(regionalMetadata.height * regionalMetadata.resolutionMeters > 101000);
+  assert.equal(createHash('sha256').update(regionalEncoded).digest('hex'), regionalMetadata.elevationSha256);
+  const regional = decodeTerrain(regionalMetadata, regionalEncoded.buffer.slice(regionalEncoded.byteOffset, regionalEncoded.byteOffset + regionalEncoded.byteLength));
+  for (const point of [landing, hogwallow, sol426]) {
+    const index = cellAt(regional, point);
+    assert.notEqual(index, null);
+    assert.ok(Number.isFinite(regional.elevationsMeters[index]));
+    assert.ok(distanceMeters(point, pointAt(regional, index), regional.radiusMeters) < 65);
+  }
 });
 
 test('verified points round-trip through source grid', () => {

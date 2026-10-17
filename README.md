@@ -7,7 +7,7 @@ An independent Marswalk research prototype that turns NASA/USGS Jezero observati
 ## What works
 
 - Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
-- Interactive 3D elevation view of the verified CTX DEM with orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. The displayed surface samples the 20 m DEM every 320 m for rendering; route metrics still use the full 20 m grid.
+- Large interactive 3D elevation view with left-button drag orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. Switch between the 20 m landing-area DEM (320 m visual mesh) and a broader USGS/JPL Jezero CTX DEM (89 × 101 km; 80 m transport samples and about 1 km visual mesh). The 2D ◈ control fits the regional overview. Route metrics still use the full 20 m landing grid.
 - NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can select any Mars coordinate for map exploration; route calculations require the measured DEM footprint.
 - Real A* graph search over the full **numeric** MRO CTX/USGS 20 m Jezero DEM footprint: 1,596 × 1,512 cells (31.9 × 30.2 km). The graph refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells.
 - Shortest available and terrain-conservative profiles, plus an optional route through a user-selected waypoint. Results include computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.
@@ -24,7 +24,7 @@ The browser app has no JavaScript package dependencies.
 python -m http.server 4173
 ```
 
-Open `http://localhost:4173/`. The checked-in terrain package is `public/data/jezero-grid-meta.json` plus `public/data/jezero-elevation-u16.bin`; the much larger source GeoTIFF is not needed for normal use. The app verifies the binary package SHA-256 before enabling routing.
+Open `http://localhost:4173/`. The checked-in route terrain package is `public/data/jezero-grid-meta.json` plus `public/data/jezero-elevation-u16.bin`. The regional view uses `public/data/jezero-regional-meta.json` and `public/data/jezero-regional-u16.bin`. Source GeoTIFFs are not needed for normal use. The app verifies each binary package SHA-256 before using it.
 
 ```powershell
 node --test tests/*.test.mjs
@@ -37,6 +37,8 @@ node scripts/build.mjs
 
 The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `scripts/extract_dem.py`. Download it to `.data-cache/jezero_ctx_dtm_20m.tif`, install Rasterio in a Python environment, and run the script. The script verifies expected dimensions, preserves the entire source raster, rejects missing cells, records the source SHA-256, and writes metadata plus a binary elevation package. No reprojection, interpolation, or synthetic elevation is used. Elevations are transport-quantized to 0.02 m; the measured maximum quantization error is 0.01 m.
 
+For the broader view, download the second GeoTIFF linked in [DATA_SOURCES.md](DATA_SOURCES.md) to `.data-cache/jezero_science_ctx_20m.tif` and run `python scripts/extract_regional_dem.py`. It preserves source no-data cells and selects every fourth source pixel without interpolation. The regional package is for visualization, and the source projection's 18.4663° standard parallel is applied to its coordinates.
+
 ## Project structure
 
 - `src/main.js` — mission workspace, map layers, evidence cards, interaction, and export.
@@ -44,7 +46,9 @@ The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `sc
 - `src/style.css` — responsive interface.
 - `public/data/jezero-grid-meta.json` — source metadata, geometry, processing record, and checksums.
 - `public/data/jezero-elevation-u16.bin` — numeric full-footprint elevation package.
+- `public/data/jezero-regional-meta.json` and `jezero-regional-u16.bin` — broader Jezero context terrain and checksums.
 - `scripts/extract_dem.py` — reproducible source packaging.
+- `scripts/extract_regional_dem.py` — reproducible regional packaging.
 - `tests/terrain.test.mjs` — geospatial and route checks.
 
 ## Documentation
