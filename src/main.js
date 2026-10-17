@@ -38,6 +38,11 @@ const state = {
   routes: {},
   selectedRoute: 'conservative',
   activeEvidence: 'dem',
+  viewMode: 'map',
+  terrainMesh: null,
+  terrainView: { yaw: -0.72, pitch: 0.82, zoom: 1, exaggeration: 6 },
+  terrainPointer: null,
+  terrainFrame: null,
   pointer: null,
 };
 
@@ -101,16 +106,18 @@ app.innerHTML = `
         </div>
       </aside>
       <main class="main-area">
-        <div class="map-topline"><span class="map-live"><span class="signal-dot"></span> ORBITAL SURFACE VIEW</span><span id="cursorCoords">18.45800°N / 77.43000°E</span></div>
+        <div class="map-topline"><span class="map-live"><span class="signal-dot"></span> JEZERO / OBSERVATION SPACE</span><div class="view-mode" role="group" aria-label="Terrain view"><button class="active" data-view="map" aria-pressed="true">2D imagery</button><button data-view="terrain" aria-pressed="false" disabled>3D elevation</button></div><span id="cursorCoords">18.45800°N / 77.43000°E</span></div>
         <div id="map" class="map" tabindex="0" aria-label="Interactive Jezero Crater map. Use arrow keys to pan and plus or minus to zoom.">
           <div id="tileLayers" class="tile-layers"></div>
+          <canvas id="terrain3d" class="terrain-canvas" role="img" aria-label="Three dimensional elevation rendering of the verified CTX terrain grid" hidden></canvas>
           <svg id="routeOverlay" class="route-overlay" aria-hidden="true"></svg>
           <div class="map-vignette"></div>
           <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Fit measured terrain">⌖</button><button id="focusRoute" aria-label="Focus route endpoints">↗</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
           <div class="map-badge">MARS / JEZERO <span>·</span> PLANETOCENTRIC · EAST POSITIVE</div>
           <div class="scale-box"><div id="scaleLine"></div><span id="scaleText">—</span></div>
           <div class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">CTX DEM MEASURED AREA</span> <span class="coverage-fill"></span> NUMERIC ELEVATION</div>
-          <div class="map-attribution">Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS</div>
+          <div id="terrain3dLegend" class="terrain-legend" hidden><div><span class="terrain-mode-chip">3D / CTX DEM</span><strong>Measured terrain</strong><small id="terrainMeshNote">Drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
+          <div id="mapAttribution" class="map-attribution">Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS</div>
         </div>
         <div class="results-bar"><div class="results-title"><span class="section-eyebrow">04 / ROUTE COMPARISON</span><h2>Decision engine <span id="routeCount" class="route-count">0 routes</span></h2></div><div id="comparisonNote" class="comparison-note">Compute routes to compare distance and terrain trade-offs.</div></div>
         <div id="routeCards" class="route-cards"></div>
@@ -221,6 +228,7 @@ function drawTiles() {
       img.alt = '';
       img.draggable = false;
       img.loading = 'lazy';
+      img.addEventListener('error', () => img.remove(), { once: true });
       img.src = `https://trek.nasa.gov/tiles/Mars/EQ/${layer.id}/1.0.0/default/default028mm/${z}/${row}/${col}.${layer.extension || 'png'}`;
       img.style.left = `${(col * 256 - center.x) * factor + map.clientWidth / 2}px`;
       img.style.top = `${(row * 256 - center.y) * factor + map.clientHeight / 2}px`;
@@ -232,6 +240,192 @@ function drawTiles() {
   }
   drawOverlay();
   drawScale();
+  scheduleTerrainRender();
+}
+
+function buildTerrainMesh(grid) {
+  const stride = Math.max(1, Math.ceil(Math.max(grid.width / 108, grid.height / 100)));
+  const columns = [];
+  const rows = [];
+  for (let col = 0; col < grid.width; col += stride) columns.push(col);
+  for (let row = 0; row < grid.height; row += stride) rows.push(row);
+  if (columns.at(-1) !== grid.width - 1) columns.push(grid.width - 1);
+  if (rows.at(-1) !== grid.height - 1) rows.push(grid.height - 1);
+  const samples = [];
+  let minimum = Infinity, maximum = -Infinity;
+  for (const row of rows) for (const col of columns) {
+    const elevation = grid.elevationsMeters[row * grid.width + col];
+    samples.push({ row, col, elevation });
+    minimum = Math.min(minimum, elevation);
+    maximum = Math.max(maximum, elevation);
+  }
+  const span = Math.max(1, maximum - minimum);
+  const longestSide = Math.max(grid.width, grid.height);
+  const xScale = grid.width / longestSide;
+  const zScale = grid.height / longestSide;
+  const vertices = samples.map((sample) => ({
+    ...sample,
+    x: ((sample.col / (grid.width - 1)) * 2 - 1) * xScale,
+    z: ((sample.row / (grid.height - 1)) * 2 - 1) * zScale,
+    y: 2 * (sample.elevation - (minimum + maximum) / 2) / (longestSide * grid.resolutionMeters),
+  }));
+  const faces = [];
+  const count = columns.length;
+  for (let row = 0; row < rows.length - 1; row++) for (let col = 0; col < columns.length - 1; col++) {
+    const a = row * count + col, b = a + 1, c = a + count, d = c + 1;
+    faces.push([a, c, b], [b, c, d]);
+  }
+  return { vertices, faces, minimum, maximum, span, xScale, zScale, stride };
+}
+
+function terrainPosition(point) {
+  const grid = state.grid;
+  const mesh = state.terrainMesh;
+  const col = Math.max(0, Math.min(grid.width - 1, Math.round((point.lon - grid.westCenterLon) / grid.degreesPerPixelLon)));
+  const row = Math.max(0, Math.min(grid.height - 1, Math.round((grid.northCenterLat - point.lat) / grid.degreesPerPixelLat)));
+  const elevation = grid.elevationsMeters[row * grid.width + col];
+  return {
+    x: ((col / (grid.width - 1)) * 2 - 1) * mesh.xScale,
+    z: ((row / (grid.height - 1)) * 2 - 1) * mesh.zScale,
+    y: 2 * (elevation - (mesh.minimum + mesh.maximum) / 2) / (Math.max(grid.width, grid.height) * grid.resolutionMeters),
+  };
+}
+
+function projectTerrain(position, width, height) {
+  const { yaw, pitch, zoom, exaggeration } = state.terrainView;
+  const cosYaw = Math.cos(yaw), sinYaw = Math.sin(yaw);
+  const x = position.x * cosYaw - position.z * sinYaw;
+  const z = position.x * sinYaw + position.z * cosYaw;
+  const y = position.y * exaggeration;
+  const cosPitch = Math.cos(pitch), sinPitch = Math.sin(pitch);
+  const rise = y * cosPitch - z * sinPitch;
+  const depth = y * sinPitch + z * cosPitch;
+  const scale = Math.min(width, height) * 0.5 * zoom;
+  return { x: width / 2 + x * scale, y: height * 0.57 - rise * scale, depth };
+}
+
+function terrainColor(normalizedElevation, illumination) {
+  const stops = [
+    [20, 38, 52], [52, 67, 75], [125, 73, 55], [193, 104, 68], [239, 183, 122],
+  ];
+  const scaled = Math.max(0, Math.min(stops.length - 1.001, normalizedElevation * (stops.length - 1)));
+  const index = Math.floor(scaled), portion = scaled - index;
+  const a = stops[index], b = stops[Math.min(stops.length - 1, index + 1)];
+  const shade = 0.52 + Math.max(0, illumination) * 0.48;
+  return `rgb(${Math.round((a[0] + (b[0] - a[0]) * portion) * shade)},${Math.round((a[1] + (b[1] - a[1]) * portion) * shade)},${Math.round((a[2] + (b[2] - a[2]) * portion) * shade)})`;
+}
+
+function drawTerrainRoute(ctx, width, height, route, color, active) {
+  if (!route?.points?.length) return;
+  const points = route.points.map((point) => projectTerrain(terrainPosition(point), width, height));
+  ctx.save();
+  ctx.beginPath();
+  points.forEach((point, index) => index ? ctx.lineTo(point.x, point.y) : ctx.moveTo(point.x, point.y));
+  ctx.strokeStyle = color;
+  ctx.lineWidth = active ? 4.5 : 2.2;
+  ctx.globalAlpha = active ? 1 : 0.68;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = active ? 14 : 5;
+  ctx.stroke();
+  ctx.restore();
+}
+
+function drawTerrainMarker(ctx, width, height, point, color, label) {
+  if (cellAt(state.grid, point) === null) return;
+  const p = projectTerrain(terrainPosition(point), width, height);
+  ctx.save();
+  ctx.fillStyle = color;
+  ctx.shadowColor = color;
+  ctx.shadowBlur = 18;
+  ctx.beginPath();
+  ctx.arc(p.x, p.y, 5.5, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#f4f0e8';
+  ctx.font = '700 10px Space Grotesk, sans-serif';
+  ctx.letterSpacing = '1px';
+  ctx.fillText(label, p.x + 11, p.y - 11);
+  ctx.restore();
+}
+
+function renderTerrain3d() {
+  state.terrainFrame = null;
+  if (state.viewMode !== 'terrain' || !state.terrainMesh || !state.grid) return;
+  const canvas = $('#terrain3d');
+  const map = $('#map');
+  const ratio = Math.min(window.devicePixelRatio || 1, 2);
+  const width = Math.max(1, map.clientWidth), height = Math.max(1, map.clientHeight);
+  if (canvas.width !== Math.round(width * ratio) || canvas.height !== Math.round(height * ratio)) {
+    canvas.width = Math.round(width * ratio); canvas.height = Math.round(height * ratio);
+  }
+  const ctx = canvas.getContext('2d');
+  ctx.setTransform(ratio, 0, 0, ratio, 0, 0);
+  const background = ctx.createLinearGradient(0, 0, width, height);
+  background.addColorStop(0, '#071018'); background.addColorStop(.5, '#101f2a'); background.addColorStop(1, '#2c1c1a');
+  ctx.fillStyle = background; ctx.fillRect(0, 0, width, height);
+  const mesh = state.terrainMesh;
+  const projected = mesh.vertices.map((vertex) => projectTerrain(vertex, width, height));
+  const ordered = mesh.faces.map(([a, b, c]) => ({ a, b, c, depth: (projected[a].depth + projected[b].depth + projected[c].depth) / 3 })).sort((left, right) => left.depth - right.depth);
+  for (const face of ordered) {
+    const va = mesh.vertices[face.a], vb = mesh.vertices[face.b], vc = mesh.vertices[face.c];
+    const ux = vb.x - va.x, uy = vb.y - va.y, uz = vb.z - va.z;
+    const vx = vc.x - va.x, vy = vc.y - va.y, vz = vc.z - va.z;
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx;
+    const magnitude = Math.hypot(nx, ny, nz) || 1;
+    const illumination = (nx * -.38 + ny * .82 + nz * -.42) / magnitude;
+    const elevation = (va.elevation + vb.elevation + vc.elevation) / 3;
+    ctx.beginPath();
+    ctx.moveTo(projected[face.a].x, projected[face.a].y);
+    ctx.lineTo(projected[face.b].x, projected[face.b].y);
+    ctx.lineTo(projected[face.c].x, projected[face.c].y);
+    ctx.closePath();
+    ctx.fillStyle = terrainColor((elevation - mesh.minimum) / mesh.span, illumination);
+    ctx.fill();
+  }
+  ctx.strokeStyle = 'rgba(210,235,235,.08)';
+  ctx.lineWidth = .45;
+  for (let i = 0; i < mesh.faces.length; i += 8) {
+    const [a, b, c] = mesh.faces[i];
+    ctx.beginPath(); ctx.moveTo(projected[a].x, projected[a].y); ctx.lineTo(projected[b].x, projected[b].y); ctx.lineTo(projected[c].x, projected[c].y); ctx.closePath(); ctx.stroke();
+  }
+  drawTerrainRoute(ctx, width, height, state.routes.shortest, '#f0b36f', state.selectedRoute === 'shortest');
+  drawTerrainRoute(ctx, width, height, state.routes.conservative, '#7be4d0', state.selectedRoute === 'conservative');
+  drawTerrainRoute(ctx, width, height, state.routes.waypoint, '#dca9ef', state.selectedRoute === 'waypoint');
+  drawTerrainMarker(ctx, width, height, state.start, '#f2b66f', 'START');
+  drawTerrainMarker(ctx, width, height, state.destination, '#82e1cf', 'DESTINATION');
+  if (state.waypoint) drawTerrainMarker(ctx, width, height, state.waypoint, '#dca9ef', 'WAYPOINT');
+}
+
+function scheduleTerrainRender() {
+  if (state.viewMode !== 'terrain' || !state.terrainMesh || state.terrainFrame) return;
+  state.terrainFrame = requestAnimationFrame(renderTerrain3d);
+}
+
+function resetTerrainView() {
+  state.terrainView = { yaw: -0.72, pitch: 0.82, zoom: 1, exaggeration: 6 };
+  scheduleTerrainRender();
+}
+
+function setViewMode(mode) {
+  if (mode === 'terrain' && !state.terrainMesh) return;
+  state.viewMode = mode;
+  const terrain = mode === 'terrain';
+  $('#terrain3d').hidden = !terrain;
+  $('#terrain3dLegend').hidden = !terrain;
+  $('#routeOverlay').style.display = terrain ? 'none' : '';
+  $('#map').classList.toggle('terrain-active', terrain);
+  $('#pickHint').textContent = terrain ? 'Orbit the CTX elevation surface. Switch to 2D imagery to select a route point; calculated routes appear in both views.' : `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
+  $('#map').setAttribute('aria-label', terrain ? 'Three dimensional CTX elevation view. Drag to orbit and use plus or minus to zoom.' : 'Interactive Jezero Crater map. Use arrow keys to pan and plus or minus to zoom.');
+  document.querySelectorAll('[data-view]').forEach((button) => { const active = button.dataset.view === mode; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
+  $('#cursorCoords').textContent = terrain ? '3D elevation / CTX DEM' : `${fmt.coord(state.center.lat)}°N / ${fmt.coord(state.center.lon)}°E`;
+  $('#mapAttribution').textContent = terrain ? 'Terrain: USGS MRO / CTX DEM · sampled visual mesh' : 'Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS';
+  if (state.grid) {
+    const widthKm = state.grid.width * state.grid.resolutionMeters / 1000;
+    const heightKm = state.grid.height * state.grid.resolutionMeters / 1000;
+    $('#coverageInfo').textContent = `Measured CTX terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(state.grid.width * state.grid.height).toLocaleString()} cells. ${terrain ? 'Switch to 2D to select points and inspect the map.' : 'Use ⌖ to fit the full footprint or ↗ to focus your route.'}`;
+  }
+  drawOverlay();
+  scheduleTerrainRender();
 }
 
 function svgPath(points) {
@@ -241,12 +435,14 @@ function svgPath(points) {
 function drawOverlay() {
   const svg = $('#routeOverlay');
   const map = $('#map');
+  if (state.viewMode === 'terrain') { svg.innerHTML = ''; scheduleTerrainRender(); return; }
   svg.setAttribute('viewBox', `0 0 ${map.clientWidth} ${map.clientHeight}`);
   const routes = Object.entries(state.routes).filter(([, route]) => route?.points);
   const paths = routes.map(([key, route]) => {
     const active = key === state.selectedRoute;
     const color = key === 'shortest' ? '#e8ad71' : key === 'waypoint' ? '#dcb5ef' : '#8cddcd';
-    return `<path d="${svgPath(route.points)}" fill="none" stroke="${color}" stroke-width="${active ? 4 : 2.4}" stroke-linecap="round" stroke-linejoin="round" opacity="${active ? 1 : 0.72}"/>`;
+    const path = svgPath(route.points);
+    return `<path d="${path}" class="route-glow ${key}" fill="none" stroke="${color}" stroke-width="${active ? 9 : 6}" stroke-linecap="round" stroke-linejoin="round" opacity="${active ? .22 : .1}"/><path d="${path}" class="route-line ${key} ${active ? 'active' : ''}" fill="none" stroke="${color}" stroke-width="${active ? 4 : 2.4}" stroke-linecap="round" stroke-linejoin="round" opacity="${active ? 1 : 0.72}"/>`;
   }).join('');
   const markers = [
     { point: state.start, color: '#e8ad71', label: 'START' },
@@ -319,7 +515,7 @@ function updatePointLabels() {
   $('#pickStart').classList.toggle('active', state.pick === 'start');
   $('#pickDestination').classList.toggle('active', state.pick === 'destination');
   $('#pickWaypoint').classList.toggle('active', state.pick === 'waypoint');
-  $('#pickHint').textContent = `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
+  $('#pickHint').textContent = state.viewMode === 'terrain' ? 'Orbit the CTX elevation surface. Switch to 2D imagery to select a route point; calculated routes appear in both views.' : `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
   const selected = state[state.pick];
   $('#latInput').value = selected?.lat.toFixed(5) ?? '';
   $('#lonInput').value = selected?.lon.toFixed(5) ?? '';
@@ -413,7 +609,7 @@ function renderSites() {
   }).join('') : '<p class="site-empty">No cited position matches this search.</p>';
   $('#siteList').querySelectorAll('[data-site-view]').forEach((button) => button.addEventListener('click', () => {
     const site = SITES.find((item) => item.id === button.dataset.siteView);
-    state.center = { ...site.point }; state.zoom = 13; drawTiles();
+    state.center = { ...site.point }; state.zoom = 13; setViewMode('map'); drawTiles();
   }));
   $('#siteList').querySelectorAll('[data-site-destination]').forEach((button) => button.addEventListener('click', () => {
     const site = SITES.find((item) => item.id === button.dataset.siteDestination);
@@ -481,7 +677,7 @@ function updateInsight() {
     const segment = route.segments[i];
     const p = route.points[i + 1];
     $('#routeInsight').insertAdjacentHTML('beforeend', `<div class="segment-detail"><strong>Steepest sampled edge</strong><p>${segment.slopeDeg.toFixed(2)}° from ${segment.elevationChange.toFixed(2)} m of height change across ${segment.length.toFixed(1)} m horizontally, near ${fmt.coord(p.lat)}°N, ${fmt.coord(p.lon)}°E. Derived from CTX DEM cells; finer hazards are unresolved.</p></div>`);
-    state.center = { lat: p.lat, lon: p.lon }; state.zoom = Math.max(state.zoom, 13); drawTiles();
+    state.center = { lat: p.lat, lon: p.lon }; state.zoom = Math.max(state.zoom, 13); setViewMode('map'); drawTiles();
   }, { once: true });
 }
 
@@ -571,7 +767,14 @@ function exportBrief() {
   setStatus('Mission brief exported with computed values and source references.');
 }
 
-function zoom(change) { state.zoom = Math.min(16, Math.max(7, state.zoom + change)); drawTiles(); }
+function zoom(change) {
+  if (state.viewMode === 'terrain') {
+    state.terrainView.zoom = Math.min(1.8, Math.max(.62, state.terrainView.zoom * (change > 0 ? 1.13 : .88)));
+    scheduleTerrainRender();
+    return;
+  }
+  state.zoom = Math.min(16, Math.max(7, state.zoom + change)); drawTiles();
+}
 
 $('#landingBtn').addEventListener('click', () => setPoint('start', LANDING));
 $('#roverBtn').addEventListener('click', () => setPoint('destination', HOGWALLOW_SOL464));
@@ -595,10 +798,12 @@ $('#themisToggle').addEventListener('change', (e) => { state.themis = e.target.c
 $('#hiriseOpacity').addEventListener('input', (e) => { state.hiriseOpacity = Number(e.target.value) / 100; $('#hiriseOpacityLabel').textContent = `${e.target.value}%`; drawTiles(); });
 $('#themisOpacity').addEventListener('input', (e) => { state.themisOpacity = Number(e.target.value) / 100; $('#themisOpacityLabel').textContent = `${e.target.value}%`; drawTiles(); });
 document.querySelectorAll('[data-evidence]').forEach((button) => button.addEventListener('click', () => evidence(button.dataset.evidence)));
+document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setViewMode(button.dataset.view)));
 $('#zoomIn').addEventListener('click', () => zoom(1));
 $('#zoomOut').addEventListener('click', () => zoom(-1));
-$('#resetMap').addEventListener('click', fitCoverage);
-$('#focusRoute').addEventListener('click', focusRoute);
+$('#resetMap').addEventListener('click', () => state.viewMode === 'terrain' ? resetTerrainView() : fitCoverage());
+$('#focusRoute').addEventListener('click', () => state.viewMode === 'terrain' ? resetTerrainView() : focusRoute());
+$('#resetTerrain').addEventListener('click', resetTerrainView);
 $('#fullscreenMap').addEventListener('click', async () => {
   try {
     if (document.fullscreenElement === map) await document.exitFullscreen();
@@ -611,10 +816,23 @@ const map = $('#map');
 map.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
 map.addEventListener('pointerdown', (e) => {
   if (e.target.closest('button')) return;
+  if (state.viewMode === 'terrain') {
+    state.terrainPointer = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: state.terrainView.yaw, pitch: state.terrainView.pitch };
+    map.setPointerCapture(e.pointerId);
+    return;
+  }
   state.pointer = { id: e.pointerId, x: e.clientX, y: e.clientY, center: { ...state.center }, moved: false };
   map.setPointerCapture(e.pointerId);
 });
 map.addEventListener('pointermove', (e) => {
+  if (state.viewMode === 'terrain') {
+    $('#cursorCoords').textContent = '3D elevation / CTX DEM';
+    if (!state.terrainPointer || state.terrainPointer.id !== e.pointerId) return;
+    state.terrainView.yaw = state.terrainPointer.yaw + (e.clientX - state.terrainPointer.x) * .009;
+    state.terrainView.pitch = Math.min(1.22, Math.max(.28, state.terrainPointer.pitch + (e.clientY - state.terrainPointer.y) * .007));
+    scheduleTerrainRender();
+    return;
+  }
   const rect = map.getBoundingClientRect();
   const at = fromScreen(e.clientX - rect.left, e.clientY - rect.top);
   $('#cursorCoords').textContent = `${fmt.coord(at.lat)}°N / ${fmt.coord(at.lon)}°E`;
@@ -627,11 +845,25 @@ map.addEventListener('pointermove', (e) => {
   drawTiles();
 });
 map.addEventListener('pointerup', (e) => {
+  if (state.viewMode === 'terrain') {
+    if (state.terrainPointer?.id === e.pointerId) state.terrainPointer = null;
+    return;
+  }
   if (!state.pointer || state.pointer.id !== e.pointerId) return;
   if (!state.pointer.moved) { const rect = map.getBoundingClientRect(); setPoint(state.pick, fromScreen(e.clientX - rect.left, e.clientY - rect.top)); }
   state.pointer = null;
 });
 map.addEventListener('keydown', (e) => {
+  if (state.viewMode === 'terrain') {
+    if (e.key === 'ArrowLeft') state.terrainView.yaw -= .08;
+    else if (e.key === 'ArrowRight') state.terrainView.yaw += .08;
+    else if (e.key === 'ArrowUp') state.terrainView.pitch = Math.max(.28, state.terrainView.pitch - .06);
+    else if (e.key === 'ArrowDown') state.terrainView.pitch = Math.min(1.22, state.terrainView.pitch + .06);
+    else if (e.key === '+' || e.key === '=') zoom(1);
+    else if (e.key === '-') zoom(-1);
+    else return;
+    e.preventDefault(); scheduleTerrainRender(); return;
+  }
   const step = 80 / (256 * 2 ** state.zoom / 180);
   if (e.key === 'ArrowLeft') state.center.lon -= step;
   else if (e.key === 'ArrowRight') state.center.lon += step;
@@ -662,6 +894,10 @@ fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((re
 }).then((grid) => {
   if (grid.elevationsMeters.length !== grid.width * grid.height) throw new Error('Terrain grid has inconsistent dimensions');
   state.grid = grid;
+  state.terrainMesh = buildTerrainMesh(grid);
+  $('#terrainMeshNote').textContent = `Drag to orbit · ${(state.terrainMesh.stride * grid.resolutionMeters).toLocaleString()} m visual samples · vertical scale 6×`;
+  $('#terrainColorNote').textContent = `Elevation tint: ${Math.round(state.terrainMesh.minimum).toLocaleString()} to ${Math.round(state.terrainMesh.maximum).toLocaleString()} m · no photo texture`;
+  document.querySelector('[data-view="terrain"]').disabled = false;
   const widthKm = grid.width * grid.resolutionMeters / 1000;
   const heightKm = grid.height * grid.resolutionMeters / 1000;
   $('#coverageInfo').textContent = `Measured CTX terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(grid.width * grid.height).toLocaleString()} cells. Use ⌖ to fit the full footprint or ↗ to focus your route.`;
@@ -672,6 +908,7 @@ fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((re
   setStatus(`CTX terrain ready · ${(grid.width * grid.height).toLocaleString()} measured cells at 20 m.`);
   fitCoverage();
   calculate();
+  setViewMode('terrain');
 }).catch((error) => {
   setStatus(`Numerical terrain unavailable: ${error.message}. Routing is disabled.`, 'error');
   $('#calculateBtn').disabled = true;

@@ -24,6 +24,10 @@ All profiles obey the same hard slope limit. The conservative profile can be lon
 
 The time estimate is `distance / assumed walking speed`; default speed is 0.75 m/s. A user-adjustable one-way time budget compares directly against that estimate. Both are scenario assumptions. They exclude stops, sampling, suit limits, energy, visibility, weather, communications, and return travel.
 
+## Three-dimensional view
+
+The 3D surface uses the same checksum-verified CTX DEM. For interactive rendering, it samples the source grid at 320 m intervals and draws triangles between those samples. Horizontal coordinates come from the source 20 m projected grid; vertical coordinates come from the sampled elevations. Height is intentionally displayed at **6×** its physical scale so regional relief remains visible in the small viewport. The terrain colors are a designed elevation tint, not orbital photography or mineral data. The 3D route line uses the full-resolution route points. All distance, ascent, and slope calculations remain based on the 20 m grid, independently of the visual mesh.
+
 ## Validation and uncertainty
 
 Automated checks cover the Mars radius, coordinate round-trip, path constraints, changed route weights, no-route behavior, and missing/invalid endpoints. Browser checks cover the visible route response at 5° and 0.1°, layer interaction, evidence inspection, and export. See [TEST_REPORT.md](TEST_REPORT.md).

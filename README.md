@@ -7,6 +7,7 @@ An independent Marswalk research prototype that turns NASA/USGS Jezero observati
 ## What works
 
 - Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
+- Interactive 3D elevation view of the verified CTX DEM with orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. The displayed surface samples the 20 m DEM every 320 m for rendering; route metrics still use the full 20 m grid.
 - NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can select any Mars coordinate for map exploration; route calculations require the measured DEM footprint.
 - Real A* graph search over the full **numeric** MRO CTX/USGS 20 m Jezero DEM footprint: 1,596 × 1,512 cells (31.9 × 30.2 km). The graph refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells.
 - Shortest available and terrain-conservative profiles, plus an optional route through a user-selected waypoint. Results include computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.

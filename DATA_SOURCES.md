@@ -33,6 +33,7 @@ The app does not present computed values as NASA measurements. The table below i
 | Elevation profile | Ordered sampled CTX elevations along the returned route | CTX DEM. |
 | Travel time and budget status | `distance / user-selected speed`; compared with the user-selected one-way budget | No external data source. These are explicitly labelled scenario assumptions. |
 | Scale bar | Map projection geometry using the same PDS label radius | CTX DEM PDS3 label. |
+| 3D terrain surface | Source DEM elevations sampled every 320 m for a display mesh; vertical height shown at 6× scale and triangles joined between samples | The same CTX DEM. The palette is a visualization choice, not a separate NASA dataset. |
 
 No external weather, radiation, life-support, communications, trafficability, hazard, astronaut-performance, or live rover telemetry dataset is used. Google Fonts are loaded only for typography and do not contribute scientific data or metrics.
 
