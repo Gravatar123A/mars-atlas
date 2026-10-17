@@ -36,6 +36,8 @@ The app does not present computed values as NASA measurements. The table below i
 | Scale bar | Map projection geometry using the same PDS label radius | CTX DEM PDS3 label. |
 | 3D terrain surface | Source DEM elevations sampled every 320 m for a display mesh; vertical height shown at 6× scale and triangles joined between samples | The same CTX DEM. The palette is a visualization choice, not a separate NASA dataset. |
 | Regional 3D terrain surface | Broader 20 m source DEM sampled at 80 m for transport, then about 1,040 m for the visual mesh; missing source cells are not filled | USGS/JPL Jezero science-investigation CTX DEM linked above. The palette and 6× vertical scale are display choices. |
+| Point elevation inspector | Nearest finite cell elevation, cell spacing and click-to-cell-center offset | The local CTX DEM where available, otherwise the regional 80 m sample package. No imagery-derived heights. |
+| Two-point measurement | Haversine horizontal distance; endpoint elevation difference only when both samples use the same product | 3,396,190 m Mars radius from the CTX label and the DEMs above. This is not a traversability or path measurement. |
 
 No external weather, radiation, life-support, communications, trafficability, hazard, astronaut-performance, or live rover telemetry dataset is used. Google Fonts are loaded only for typography and do not contribute scientific data or metrics.
 

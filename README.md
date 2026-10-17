@@ -15,6 +15,7 @@ An independent Marswalk research prototype that turns NASA/USGS Jezero observati
 - Mission overview and named plans saved in browser storage; loading a plan restores points, constraints, and map layers, then recalculates routes.
 - Searchable, source-linked collection of three documented Mars 2020 positions, including a Sol 426 delta-area rover position that can be selected as a route waypoint.
 - Source inspector, segment explanation, no-route state, and a Markdown mission brief export with actual computed values and source links.
+- 2D point inspector with measured DEM elevation, cell spacing, nearest-sample offset, and explicit no-data results. Two-point measurement reports Mars great-circle distance and only compares endpoint elevations when both came from the same DEM product.
 
 ## Run locally
 

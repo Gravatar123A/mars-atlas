@@ -32,6 +32,20 @@ export function pointAt(grid, index) {
   };
 }
 
+export function sampleElevation(grid, point) {
+  const index = cellAt(grid, point);
+  if (index === null || !Number.isFinite(grid.elevationsMeters[index])) return null;
+  const sampledPoint = pointAt(grid, index);
+  return {
+    elevationMeters: grid.elevationsMeters[index],
+    sampledPoint,
+    offsetMeters: distanceMeters(point, sampledPoint, grid.radiusMeters),
+    resolutionMeters: grid.resolutionMeters,
+    sourceId: grid.sourceId,
+    productPage: grid.productPage,
+  };
+}
+
 export function distanceMeters(a, b, radius = GRID_RADIUS_M) {
   const p1 = a.lat * RAD;
   const p2 = b.lat * RAD;

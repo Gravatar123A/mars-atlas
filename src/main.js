@@ -1,4 +1,4 @@
-import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia } from './terrain.js';
+import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia, sampleElevation } from './terrain.js?v=9';
 
 const $ = (selector) => document.querySelector(selector);
 const app = $('#app');
@@ -30,6 +30,9 @@ const state = {
   themisOpacity: 0.45,
   hiriseOpacity: 0.72,
   pick: 'destination',
+  mapTool: 'route',
+  inspection: null,
+  measurePoints: [],
   start: LANDING,
   destination: HOGWALLOW_SOL464,
   waypoint: null,
@@ -117,6 +120,8 @@ app.innerHTML = `
           <div class="map-vignette"></div>
           <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Fit route terrain">⌖</button><button id="fitRegion" aria-label="Explore wider Jezero region in 2D" title="Explore wider Jezero region in 2D" disabled>◈</button><button id="focusRoute" aria-label="Focus route endpoints">↗</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
           <div class="map-badge">MARS / JEZERO <span>·</span> PLANETOCENTRIC · EAST POSITIVE</div>
+          <div id="mapToolbox" class="map-toolbox" role="group" aria-label="2D map tools"><button data-map-tool="route" class="active" aria-pressed="true">Choose route point</button><button data-map-tool="inspect" aria-pressed="false">Inspect elevation</button><button data-map-tool="measure" aria-pressed="false">Measure distance</button></div>
+          <div id="mapAnalysis" class="map-analysis" role="status" hidden></div>
           <div class="scale-box"><div id="scaleLine"></div><span id="scaleText">—</span></div>
           <div class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">CTX DEM MEASURED AREA</span> <span class="coverage-fill"></span> NUMERIC ELEVATION</div>
           <div id="terrain3dLegend" class="terrain-legend" hidden><div><span class="terrain-mode-chip">3D / CTX DEM</span><strong id="terrainScopeTitle">Measured terrain</strong><small id="terrainMeshNote">Left drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small><div class="terrain-scope" role="group" aria-label="3D terrain area"><button data-scope="local" class="active" aria-pressed="true">Landing area</button><button data-scope="regional" aria-pressed="false" disabled>Jezero region</button></div><a id="terrainSourceLink" href="https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/index.html" target="_blank" rel="noopener">USGS terrain source ↗</a></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
@@ -445,15 +450,27 @@ function updateCoverageInfo() {
   $('#coverageInfo').innerHTML = `Measured CTX route terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(local.width * local.height).toLocaleString()} cells. ${state.viewMode === 'terrain' ? 'Switch to 2D to select points.' : 'Use ⌖ to fit the route footprint or ↗ to focus your route.'}${regional ? `<br>Broader Jezero CTX DEM: ${(regional.width * regional.resolutionMeters / 1000).toFixed(1)} × ${(regional.height * regional.resolutionMeters / 1000).toFixed(1)} km. Source cells are 20 m; the regional package samples at 80 m, with a coarser visual mesh. Use ◈ for 2D overview or Jezero region in 3D. Routes use the 20 m landing grid.` : ''}`;
 }
 
+function updateMapHint() {
+  $('#pickHint').textContent = state.viewMode === 'terrain'
+    ? 'Left drag to orbit the CTX elevation surface. Switch to 2D imagery to select points or inspect measured elevations.'
+    : state.mapTool === 'inspect'
+      ? 'Click the 2D map to inspect a measured DEM elevation. Uncovered locations are marked unknown.'
+      : state.mapTool === 'measure'
+        ? 'Choose two map points to measure horizontal Mars distance. This is not a walkable route.'
+        : `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
+}
+
 function setViewMode(mode) {
   if (mode === 'terrain' && !state.terrainMesh) return;
   state.viewMode = mode;
   const terrain = mode === 'terrain';
   $('#terrain3d').hidden = !terrain;
   $('#terrain3dLegend').hidden = !terrain;
+  $('#mapToolbox').hidden = terrain;
+  $('#mapAnalysis').hidden = terrain || state.mapTool === 'route';
   $('#routeOverlay').style.display = terrain ? 'none' : '';
   $('#map').classList.toggle('terrain-active', terrain);
-  $('#pickHint').textContent = terrain ? 'Orbit the CTX elevation surface. Switch to 2D imagery to select a route point; calculated routes appear in both views.' : `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
+  updateMapHint();
   $('#map').setAttribute('aria-label', terrain ? 'Three dimensional CTX elevation view. Drag to orbit and use plus or minus to zoom.' : 'Interactive Jezero Crater map. Use arrow keys to pan and plus or minus to zoom.');
   document.querySelectorAll('[data-view]').forEach((button) => { const active = button.dataset.view === mode; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
   $('#cursorCoords').textContent = terrain ? '3D elevation / CTX DEM' : `${fmt.coord(state.center.lat)}°N / ${fmt.coord(state.center.lon)}°E`;
@@ -461,6 +478,55 @@ function setViewMode(mode) {
   updateCoverageInfo();
   drawOverlay();
   scheduleTerrainRender();
+}
+
+function preferredElevation(point) {
+  if (state.grid) {
+    const local = sampleElevation(state.grid, point);
+    if (local) return { ...local, level: 'Landing-area CTX DEM', sourceResolutionMeters: 20 };
+  }
+  if (state.regionalGrid) {
+    const regional = sampleElevation(state.regionalGrid, point);
+    if (regional) return { ...regional, level: 'Regional Jezero CTX DEM', sourceResolutionMeters: 20 };
+  }
+  return null;
+}
+
+function elevationDetails(sample) {
+  if (!sample) return '<strong>Elevation unknown</strong><p>No verified numerical DEM sample is available at this location. Imagery color is not converted to height.</p>';
+  return `<strong>${Math.round(sample.elevationMeters).toLocaleString()} m</strong><p>${sample.level} · ${sample.resolutionMeters} m sampled grid from a ${sample.sourceResolutionMeters} m source. Nearest stored cell center is ${Math.round(sample.offsetMeters)} m from the selected coordinate. Absolute vertical uncertainty is not validated here.</p><a href="${sample.productPage}" target="_blank" rel="noopener">Open USGS terrain source ↗</a>`;
+}
+
+function renderMapAnalysis() {
+  const card = $('#mapAnalysis');
+  card.hidden = state.viewMode === 'terrain' || state.mapTool === 'route';
+  if (state.mapTool === 'inspect') {
+    const selected = state.inspection;
+    card.innerHTML = `<div class="analysis-head"><span>LOCATION / ELEVATION</span><button data-analysis-clear aria-label="Clear inspected location">×</button></div>${selected ? `<p class="analysis-coords">${fmt.coord(selected.point.lat)}°N · ${fmt.coord(selected.point.lon)}°E</p>${elevationDetails(selected.sample)}` : '<p>Click the 2D map, or press Enter with the map focused, to inspect a location.</p>'}`;
+  } else {
+    const [first, second] = state.measurePoints;
+    const distance = second ? distanceMeters(first.point, second.point, state.grid?.radiusMeters || 3396190) : null;
+    const comparable = first?.sample && second?.sample && first.sample.sourceId === second.sample.sourceId;
+    const delta = comparable ? second.sample.elevationMeters - first.sample.elevationMeters : null;
+    card.innerHTML = `<div class="analysis-head"><span>TWO-POINT MEASUREMENT</span><button data-analysis-clear aria-label="Clear measurement">×</button></div>${!first ? '<p>Choose the first point on the 2D map, then choose the second.</p>' : !second ? `<p>First point: ${fmt.coord(first.point.lat)}°N · ${fmt.coord(first.point.lon)}°E. Choose the second point.</p>${elevationDetails(first.sample)}` : `<strong>${fmt.distance(distance)} horizontal distance</strong><p>Great-circle distance on a 3,396,190 m Mars sphere; this is not a walkable route.</p><p>Endpoint elevation change: ${delta === null ? 'unknown — both points need elevation from the same DEM product' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} m`}. No terrain between these points is assessed.</p><small>A: ${fmt.coord(first.point.lat)}°N, ${fmt.coord(first.point.lon)}°E · B: ${fmt.coord(second.point.lat)}°N, ${fmt.coord(second.point.lon)}°E</small>`}`;
+  }
+}
+
+function selectMapTool(tool) {
+  state.mapTool = tool;
+  document.querySelectorAll('[data-map-tool]').forEach((button) => { const active = button.dataset.mapTool === tool; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
+  renderMapAnalysis();
+  updateMapHint();
+  drawOverlay();
+}
+
+function handleMapPoint(point) {
+  if (state.mapTool === 'route') { setPoint(state.pick, point); return; }
+  const selected = { point, sample: preferredElevation(point) };
+  if (state.mapTool === 'inspect') state.inspection = selected;
+  else state.measurePoints = state.measurePoints.length >= 2 ? [selected] : [...state.measurePoints, selected];
+  renderMapAnalysis();
+  drawOverlay();
 }
 
 function svgPath(points) {
@@ -491,7 +557,10 @@ function drawOverlay() {
     const b = screen({ lat: grid.northCenterLat - (grid.height - .5) * grid.degreesPerPixelLat, lon: grid.westCenterLon + (grid.width - .5) * grid.degreesPerPixelLon });
     bounds = `<rect x="${a.x}" y="${a.y}" width="${b.x - a.x}" height="${b.y - a.y}" fill="#74d8c1" fill-opacity=".035" stroke="#74d8c1" stroke-opacity=".7" stroke-width="1.2" stroke-dasharray="7 6"/>`;
   }
-  svg.innerHTML = bounds + paths + markers;
+  const analysisPoints = state.mapTool === 'inspect' ? (state.inspection ? [state.inspection] : []) : state.mapTool === 'measure' ? state.measurePoints : [];
+  const analysisLine = state.mapTool === 'measure' && analysisPoints.length === 2 ? `<path d="${svgPath(analysisPoints.map((item) => item.point))}" stroke="#f5d990" stroke-width="2.5" stroke-dasharray="6 5" fill="none"/>` : '';
+  const analysisMarkers = analysisPoints.map((item, index) => { const p = screen(item.point); return `<g><circle cx="${p.x}" cy="${p.y}" r="9" fill="#f5d990" opacity=".23"/><circle cx="${p.x}" cy="${p.y}" r="4" fill="#f5d990"/><text x="${p.x + 11}" y="${p.y - 8}" fill="#fff4ce" font-size="11" font-weight="700" paint-order="stroke" stroke="#111a20" stroke-width="3">${state.mapTool === 'measure' ? index ? 'B' : 'A' : 'SAMPLE'}</text></g>`; }).join('');
+  svg.innerHTML = bounds + paths + markers + analysisLine + analysisMarkers;
 }
 
 function drawScale() {
@@ -550,7 +619,7 @@ function updatePointLabels() {
   $('#pickStart').classList.toggle('active', state.pick === 'start');
   $('#pickDestination').classList.toggle('active', state.pick === 'destination');
   $('#pickWaypoint').classList.toggle('active', state.pick === 'waypoint');
-  $('#pickHint').textContent = state.viewMode === 'terrain' ? 'Orbit the CTX elevation surface. Switch to 2D imagery to select a route point; calculated routes appear in both views.' : `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
+  updateMapHint();
   const selected = state[state.pick];
   $('#latInput').value = selected?.lat.toFixed(5) ?? '';
   $('#lonInput').value = selected?.lon.toFixed(5) ?? '';
@@ -816,9 +885,9 @@ function zoom(change) {
 
 $('#landingBtn').addEventListener('click', () => setPoint('start', LANDING));
 $('#roverBtn').addEventListener('click', () => setPoint('destination', HOGWALLOW_SOL464));
-$('#pickStart').addEventListener('click', () => { state.pick = 'start'; updatePointLabels(); });
-$('#pickDestination').addEventListener('click', () => { state.pick = 'destination'; updatePointLabels(); });
-$('#pickWaypoint').addEventListener('click', () => { state.pick = 'waypoint'; updatePointLabels(); });
+$('#pickStart').addEventListener('click', () => { state.pick = 'start'; setViewMode('map'); selectMapTool('route'); updatePointLabels(); });
+$('#pickDestination').addEventListener('click', () => { state.pick = 'destination'; setViewMode('map'); selectMapTool('route'); updatePointLabels(); });
+$('#pickWaypoint').addEventListener('click', () => { state.pick = 'waypoint'; setViewMode('map'); selectMapTool('route'); updatePointLabels(); });
 $('#clearWaypoint').addEventListener('click', () => { state.waypoint = null; state.pick = 'destination'; invalidateRoutes(); updatePointLabels(); renderSites(); drawOverlay(); setStatus('Waypoint cleared. Calculate to update routes.'); });
 $('#applyCoords').addEventListener('click', () => setPoint(state.pick, { lat: Number($('#latInput').value), lon: Number($('#lonInput').value) }));
 $('#slopeRange').addEventListener('input', (e) => { state.maxSlope = Number(e.target.value); $('#slopeValue').textContent = `${state.maxSlope.toFixed(1)}°`; });
@@ -837,6 +906,14 @@ $('#hiriseOpacity').addEventListener('input', (e) => { state.hiriseOpacity = Num
 $('#themisOpacity').addEventListener('input', (e) => { state.themisOpacity = Number(e.target.value) / 100; $('#themisOpacityLabel').textContent = `${e.target.value}%`; drawTiles(); });
 document.querySelectorAll('[data-evidence]').forEach((button) => button.addEventListener('click', () => evidence(button.dataset.evidence)));
 document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setViewMode(button.dataset.view)));
+document.querySelectorAll('[data-map-tool]').forEach((button) => button.addEventListener('click', () => selectMapTool(button.dataset.mapTool)));
+$('#mapAnalysis').addEventListener('click', (event) => {
+  if (!event.target.closest('[data-analysis-clear]')) return;
+  state.inspection = null;
+  state.measurePoints = [];
+  renderMapAnalysis();
+  drawOverlay();
+});
 document.querySelectorAll('[data-scope]').forEach((button) => button.addEventListener('click', () => setTerrainScope(button.dataset.scope)));
 function setInspectorOpen(open) {
   $('.workspace').classList.toggle('inspector-open', open);
@@ -866,7 +943,7 @@ $('#fullscreenMap').addEventListener('click', async () => {
 const map = $('#map');
 map.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1 : -1); }, { passive: false });
 map.addEventListener('pointerdown', (e) => {
-  if (e.target.closest('button') || e.button !== 0) return;
+  if (e.target.closest('button, a, .map-toolbox, .map-analysis') || e.button !== 0) return;
   if (state.viewMode === 'terrain') {
     state.terrainPointer = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: state.terrainView.yaw, pitch: state.terrainView.pitch };
     map.classList.add('dragging-terrain');
@@ -903,7 +980,7 @@ map.addEventListener('pointerup', (e) => {
     return;
   }
   if (!state.pointer || state.pointer.id !== e.pointerId) return;
-  if (!state.pointer.moved) { const rect = map.getBoundingClientRect(); setPoint(state.pick, fromScreen(e.clientX - rect.left, e.clientY - rect.top)); }
+  if (!state.pointer.moved) { const rect = map.getBoundingClientRect(); handleMapPoint(fromScreen(e.clientX - rect.left, e.clientY - rect.top)); }
   state.pointer = null;
 });
 map.addEventListener('pointercancel', (e) => {
@@ -925,6 +1002,7 @@ map.addEventListener('keydown', (e) => {
     else return;
     e.preventDefault(); scheduleTerrainRender(); return;
   }
+  if ((e.key === 'Enter' || e.key === ' ') && e.target === map) { e.preventDefault(); handleMapPoint({ ...state.center }); return; }
   const step = 80 / (256 * 2 ** state.zoom / 180);
   if (e.key === 'ArrowLeft') state.center.lon -= step;
   else if (e.key === 'ArrowRight') state.center.lon += step;
@@ -990,5 +1068,8 @@ fetch(new URL('../public/data/jezero-regional-meta.json', import.meta.url)).then
   document.querySelector('[data-scope="regional"]').disabled = false;
   $('#fitRegion').disabled = false;
   updateCoverageInfo();
+  if (state.inspection && !state.inspection.sample) state.inspection.sample = preferredElevation(state.inspection.point);
+  state.measurePoints.forEach((selected) => { if (!selected.sample) selected.sample = preferredElevation(selected.point); });
+  renderMapAnalysis();
   if (state.activeEvidence === 'regional') evidence('regional');
 }).catch((error) => { console.warn(`Regional terrain unavailable: ${error.message}`); });

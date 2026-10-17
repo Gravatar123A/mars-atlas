@@ -30,6 +30,12 @@ The landing-area 3D surface uses the same checksum-verified CTX DEM as routing. 
 
 Height is intentionally displayed at **6×** its physical scale. The terrain colors are a designed elevation tint, not orbital photography or mineral data. The 3D route line uses full-resolution route coordinates and the original 20 m elevation samples. All distance, ascent, and slope calculations remain based on the landing-area 20 m grid. The regional surface provides context and does not claim additional route coverage.
 
+## Point inspection and two-point measurement
+
+The 2D inspector converts a clicked Mars coordinate to the nearest cell in the 20 m route DEM. Outside that footprint it checks the separate 80 m sampled regional DEM. It reports the stored elevation, source product, grid spacing, and horizontal offset to the sampled cell center. A point without a finite DEM cell is reported as unknown; imagery color is never used as an elevation substitute. These are source elevation values, with absolute vertical uncertainty not independently validated by this prototype.
+
+The measurement tool uses the source Mars radius of 3,396,190 m in the haversine formula for the horizontal great-circle distance between two user-selected coordinates. This is a direct distance, not a route length or a terrain profile. It reports an endpoint elevation difference only when both samples come from the same DEM product. It does not infer slope or hazards between the endpoints.
+
 ## Validation and uncertainty
 
 Automated checks cover the Mars radius, coordinate round-trip, path constraints, changed route weights, no-route behavior, and missing/invalid endpoints. Browser checks cover the visible route response at 5° and 0.1°, layer interaction, evidence inspection, and export. See [TEST_REPORT.md](TEST_REPORT.md).

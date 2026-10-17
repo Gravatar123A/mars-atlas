@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia, pointAt } from '../src/terrain.js';
+import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia, pointAt, sampleElevation } from '../src/terrain.js';
 
 const metadata = JSON.parse(readFileSync(new URL('../public/data/jezero-grid-meta.json', import.meta.url)));
 const encoded = readFileSync(new URL('../public/data/jezero-elevation-u16.bin', import.meta.url));
@@ -53,6 +53,19 @@ test('verified points round-trip through source grid', () => {
     assert.ok(Number.isFinite(grid.elevationsMeters[index]));
     assert.ok(distanceMeters(point, pointAt(grid, index), grid.radiusMeters) < 15);
   }
+});
+
+test('point inspector reports measured cells and explicit missing coverage', () => {
+  const local = sampleElevation(grid, landing);
+  assert.ok(Number.isFinite(local.elevationMeters));
+  assert.equal(local.resolutionMeters, 20);
+  assert.ok(local.offsetMeters < 15);
+  assert.equal(sampleElevation(grid, { lat: 18.20498, lon: 78.19871 }), null);
+  const regional = decodeTerrain(regionalMetadata, regionalEncoded.buffer.slice(regionalEncoded.byteOffset, regionalEncoded.byteOffset + regionalEncoded.byteLength));
+  const outsideLocal = sampleElevation(regional, { lat: 18.20498, lon: 78.19871 });
+  assert.ok(Number.isFinite(outsideLocal.elevationMeters));
+  assert.equal(outsideLocal.resolutionMeters, 80);
+  assert.equal(sampleElevation(regional, { lat: 0, lon: 0 }), null);
 });
 
 test('route profiles exhibit a measured terrain trade-off', () => {
