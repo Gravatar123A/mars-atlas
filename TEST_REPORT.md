@@ -1,6 +1,6 @@
 # Test report
 
-Run date: 2026-10-17. Local prototype, no public deployment.
+Run date: 2026-10-17. Local and live GitHub Pages prototype.
 
 | Test | Expected | Observed | Status |
 | --- | --- | --- | --- |
@@ -21,5 +21,6 @@ Run date: 2026-10-17. Local prototype, no public deployment.
 | Export | Produce brief from selected route values | Browser export action reported completion; generated Markdown uses route state and source links | Pass for action; downloaded file was not separately parsed in this run |
 | Responsive layout | Mission view remains usable at narrower width | Browser screenshot at roughly 996 px showed the map, controls, and all three cards after layout correction; CSS also defines smaller breakpoints | Partial; mobile interaction not fully tested |
 | External tile failure | Numeric route remains available | Architecture separates cached grid from live map tiles | Not yet directly simulated in browser |
+| Hosted deployment | Built app resolves assets under `/mars-atlas/` and computes routes | GitHub Pages workflow passed; live browser loaded NASA imagery and CTX grid, displayed 2 default routes, then computed a 4.97 km third route via Sol 426 | Pass |
 
 Automated command: `node --test tests/*.test.mjs` — **7 tests passed, 0 failed**. A full user study, mobile accessibility audit, vertical accuracy validation, and hosted end-to-end test remain open.

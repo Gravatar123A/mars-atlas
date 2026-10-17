@@ -2,6 +2,8 @@
 
 An independent Marswalk research prototype that turns NASA/USGS Jezero observations into inspectable route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
 
+**Live app:** https://gravatar123a.github.io/mars-atlas/
+
 ## What works
 
 - Interactive Jezero map with NASA Mars Trek CTX basemap, MOLA basemap option, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
@@ -28,7 +30,7 @@ node --test tests/*.test.mjs
 node scripts/build.mjs
 ```
 
-`dist/` is the static deployment artifact. Serve it with a static host. No public deployment has been made yet.
+`dist/` is the static deployment artifact. GitHub Pages deploys it automatically from the `master` branch after the tests and build pass. Relative asset paths also allow hosting under the repository subpath.
 
 ## Reproduce the terrain grid
 
@@ -54,4 +56,4 @@ The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `sc
 
 ## Development status
 
-The app is a functional local research prototype. It still needs broader usability review, a hosted deployment, and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.
+The app is a functional deployed research prototype. It still needs broader usability review and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.
