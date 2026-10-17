@@ -10,7 +10,7 @@ Pixel centers are converted from the source GeoTIFF's 20 m affine transform to l
 
 `distanceMeters()` uses the haversine formula and the same 3,396,190 m source sphere. Graph edge horizontal lengths are derived from angular cell spacing, with the east-west term scaled by the cosine of the starting latitude. Over this small study area, the approximation differs negligibly from recomputing the cosine at every edge; route summary distance is accumulated with the haversine formula for each path segment.
 
-Every raster value is a numeric elevation from the CTX DEM. The browser receives a crop with values rounded to 0.01 m; it does **not** infer elevation from color imagery. The extraction rejects any crop with missing cells. Browser graph search separately refuses non-finite cells. Positive height changes contribute to cumulative ascent, negative changes to descent. Edge slope is `atan(abs(height change) / horizontal edge length)` in degrees. These are cell-to-cell estimates, not local rock-scale measurements.
+Every raster value is a numeric elevation from the full CTX DEM. The browser receives all 1,596 × 1,512 source cells, transport-quantized to a 0.02 m step with a measured maximum error of 0.01 m; it does **not** infer elevation from color imagery. The extraction rejects a source raster with missing cells, records the source SHA-256, and the browser verifies the packaged binary SHA-256 before decoding it. Browser graph search separately refuses non-finite cells. Positive height changes contribute to cumulative ascent, negative changes to descent. Edge slope is `atan(abs(height change) / horizontal edge length)` in degrees. These are cell-to-cell estimates, not local rock-scale measurements.
 
 ## Routing
 
@@ -20,7 +20,7 @@ The graph has eight possible neighbors per valid 20 m cell. An edge is forbidden
 - **Terrain conservative:** edge cost is `horizontal length × [1 + 8 × (edge slope / slope limit)²]`.
 - **Via waypoint:** two shortest valid legs are joined at one user-selected intermediate cell. Leg distances, ascent, descent, and travel times are summed. This route has no inferred science score.
 
-All profiles obey the same hard slope limit. The conservative profile can be longer because it penalizes steeper measured edges. At the default 5° limit between the NASA-documented presets, the currently cropped DEM yields about 3.90 km with 4.9° maximum sampled slope for shortest and 4.83 km with 3.4° for terrain conservative. These are calculations for this raster and model, not validated traverses.
+All profiles obey the same hard slope limit. The conservative profile can be longer because it penalizes steeper measured edges. At the default 5° limit between the NASA-documented presets, the full DEM yields about 3.92 km with 4.9° maximum sampled slope for shortest and 4.83 km with 3.4° for terrain conservative. These are reproducible calculations from source elevations and the stated model, not validated traverses.
 
 The time estimate is `distance / assumed walking speed`; default speed is 0.75 m/s. A user-adjustable one-way time budget compares directly against that estimate. Both are scenario assumptions. They exclude stops, sampling, suit limits, energy, visibility, weather, communications, and return travel.
 

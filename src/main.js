@@ -1,4 +1,4 @@
-import { cellAt, distanceMeters, planRoute, planRouteVia } from './terrain.js';
+import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia } from './terrain.js';
 
 const $ = (selector) => document.querySelector(selector);
 const app = $('#app');
@@ -16,13 +16,13 @@ const MAP_LAYERS = {
   ctx: { id: 'JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0', maxZoom: 13, title: 'CTX controlled mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'Context Camera', resolution: '6 m imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Orbital image brightness is not elevation or a measure of safe footing.' },
   hirise: { id: 'JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd', maxZoom: 17, title: 'HiRISE controlled mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'HiRISE', resolution: '25 cm imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Detailed imagery does not establish terrain height or current surface safety.' },
   themis: { id: 'THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018', maxZoom: 9, title: 'THEMIS daytime IR mosaic', mission: 'Mars Odyssey', instrument: 'THEMIS', resolution: '100 m mosaic', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Historical thermal infrared image, not live temperature or weather.' },
-  mola: { id: 'Mars_MGS_MOLA_ClrShade_merge_global_463m', maxZoom: 7, title: 'MOLA color hillshade', mission: 'Mars Global Surveyor', instrument: 'MOLA', resolution: '463 m visual product', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Rendered hillshade is visual context, not the numeric DEM used for routing.' },
+  mola: { id: 'Mars_MGS_MOLA_ClrShade_merge_global_463m', maxZoom: 7, extension: 'jpg', title: 'MOLA color hillshade', mission: 'Mars Global Surveyor', instrument: 'MOLA', resolution: '463 m visual product', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Rendered hillshade is visual context, not the numeric DEM used for routing.' },
 };
 
 const state = {
   grid: null,
   center: { lat: 18.458, lon: 77.430 },
-  zoom: 11,
+  zoom: 9,
   basemap: 'ctx',
   hirise: false,
   themis: false,
@@ -72,7 +72,8 @@ app.innerHTML = `
           <a class="point-source" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA record for this rover location ↗</a>
           <div class="field-heading destination-heading"><span>OPTIONAL WAYPOINT</span><button class="text-button" id="clearWaypoint">Clear stop</button></div>
           <div class="point-input"><span class="point-icon waypoint-icon"></span><div><strong id="waypointLabel">No intermediate stop</strong><small id="waypointCoords">Add a map point to compare a route through it</small></div><button id="pickWaypoint" aria-label="Choose waypoint on map">◎</button></div>
-          <div class="pick-hint" id="pickHint">Click the map to choose a destination. Map points outside the measured terrain are rejected.</div>
+          <div class="pick-hint" id="pickHint">Click the map to choose a destination. Routes require measured terrain coverage.</div>
+          <div id="coverageInfo" class="coverage-info">Loading measured terrain footprint…</div>
           <details class="coordinate-details"><summary>Enter precise coordinates</summary><div class="coordinate-form"><label>Latitude (°N)<input id="latInput" type="number" step="0.00001" min="-90" max="90"></label><label>Longitude (°E)<input id="lonInput" type="number" step="0.00001" min="-180" max="180"></label><button id="applyCoords" class="outline-button">Set selected point</button></div></details>
           <div class="divider"></div>
           <div class="section-title-row"><div><div class="section-eyebrow">02 / CONSTRAINTS</div><h2>Mission parameters</h2></div><span class="model-tag">MODEL</span></div>
@@ -105,10 +106,10 @@ app.innerHTML = `
           <div id="tileLayers" class="tile-layers"></div>
           <svg id="routeOverlay" class="route-overlay" aria-hidden="true"></svg>
           <div class="map-vignette"></div>
-          <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Return to study area">⌖</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
+          <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Fit measured terrain">⌖</button><button id="focusRoute" aria-label="Focus route endpoints">↗</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
           <div class="map-badge">MARS / JEZERO <span>·</span> PLANETOCENTRIC · EAST POSITIVE</div>
           <div class="scale-box"><div id="scaleLine"></div><span id="scaleText">—</span></div>
-          <div class="coverage-key"><span class="coverage-line"></span> CTX DEM STUDY AREA <span class="coverage-fill"></span> NUMERIC ELEVATION</div>
+          <div class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">CTX DEM MEASURED AREA</span> <span class="coverage-fill"></span> NUMERIC ELEVATION</div>
           <div class="map-attribution">Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS</div>
         </div>
         <div class="results-bar"><div class="results-title"><span class="section-eyebrow">04 / ROUTE COMPARISON</span><h2>Decision engine <span id="routeCount" class="route-count">0 routes</span></h2></div><div id="comparisonNote" class="comparison-note">Compute routes to compare distance and terrain trade-offs.</div></div>
@@ -161,12 +162,46 @@ function fromScreen(x, y) {
   return { lon: ((c.x + x - map.clientWidth / 2) / (scale * 2)) * 360 - 180, lat: 90 - ((c.y + y - map.clientHeight / 2) / scale) * 180 };
 }
 
+function fitPoints(points, fill = .78) {
+  const map = $('#map');
+  if (!map.clientWidth || !map.clientHeight || !points.length) return;
+  const latitudes = points.map((point) => point.lat);
+  const longitudes = points.map((point) => point.lon);
+  const north = Math.max(...latitudes), south = Math.min(...latitudes);
+  const east = Math.max(...longitudes), west = Math.min(...longitudes);
+  state.center = { lat: (north + south) / 2, lon: (east + west) / 2 };
+  state.zoom = 7;
+  for (let zoomLevel = 16; zoomLevel >= 7; zoomLevel--) {
+    const a = world({ lat: north, lon: west }, zoomLevel);
+    const b = world({ lat: south, lon: east }, zoomLevel);
+    if (b.x - a.x <= map.clientWidth * fill && b.y - a.y <= map.clientHeight * fill) {
+      state.zoom = zoomLevel;
+      break;
+    }
+  }
+  drawTiles();
+}
+
+function fitCoverage() {
+  if (!state.grid) return;
+  const grid = state.grid;
+  fitPoints([
+    { lat: grid.northCenterLat + grid.degreesPerPixelLat / 2, lon: grid.westCenterLon - grid.degreesPerPixelLon / 2 },
+    { lat: grid.northCenterLat - (grid.height - .5) * grid.degreesPerPixelLat, lon: grid.westCenterLon + (grid.width - .5) * grid.degreesPerPixelLon },
+  ]);
+}
+
+function focusRoute() {
+  const route = state.routes[state.selectedRoute];
+  fitPoints(route?.points || [state.start, state.destination, ...(state.waypoint ? [state.waypoint] : [])]);
+}
+
 function drawTiles() {
   const map = $('#map');
   const container = $('#tileLayers');
   if (!map.clientWidth || !map.clientHeight) return;
   container.replaceChildren();
-  const visible = [{ key: state.basemap, opacity: 1 }];
+  const visible = state.basemap === 'ctx' ? [{ key: 'mola', opacity: 1 }, { key: 'ctx', opacity: 1 }] : [{ key: 'mola', opacity: 1 }];
   if (state.hirise) visible.push({ key: 'hirise', opacity: state.hiriseOpacity });
   if (state.themis) visible.push({ key: 'themis', opacity: state.themisOpacity });
   for (const { key, opacity } of visible) {
@@ -180,13 +215,13 @@ function drawTiles() {
     const c1 = Math.min(2 ** (z + 1) - 1, Math.floor((center.x + halfW) / 256) + 1);
     const r0 = Math.max(0, Math.floor((center.y - halfH) / 256) - 1);
     const r1 = Math.min(2 ** z - 1, Math.floor((center.y + halfH) / 256) + 1);
-    const group = el(`<div class="tile-group" style="opacity:${opacity}"></div>`);
+    const group = el(`<div class="tile-group ${key === 'mola' && state.basemap === 'ctx' ? 'context-backdrop' : ''}" style="opacity:${opacity}"></div>`);
     for (let row = r0; row <= r1; row++) for (let col = c0; col <= c1; col++) {
       const img = document.createElement('img');
       img.alt = '';
       img.draggable = false;
       img.loading = 'lazy';
-      img.src = `https://trek.nasa.gov/tiles/Mars/EQ/${layer.id}/1.0.0/default/default028mm/${z}/${row}/${col}.png`;
+      img.src = `https://trek.nasa.gov/tiles/Mars/EQ/${layer.id}/1.0.0/default/default028mm/${z}/${row}/${col}.${layer.extension || 'png'}`;
       img.style.left = `${(col * 256 - center.x) * factor + map.clientWidth / 2}px`;
       img.style.top = `${(row * 256 - center.y) * factor + map.clientHeight / 2}px`;
       img.style.width = `${256 * factor + 0.5}px`;
@@ -238,14 +273,17 @@ function drawScale() {
 }
 
 function setPoint(kind, point) {
-  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) || !state.grid || cellAt(state.grid, point) === null || !Number.isFinite(state.grid.elevationsMeters[cellAt(state.grid, point)])) {
-    setStatus('That point is outside the measured CTX terrain grid.', 'error');
+  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) || Math.abs(point.lat) > 90 || Math.abs(point.lon) > 180 || !state.grid) {
+    setStatus('Enter a valid Mars latitude and longitude.', 'error');
     return false;
   }
-  const cell = cellAt(state.grid, point);
-  if ((kind === 'start' && (cell === cellAt(state.grid, state.destination) || (state.waypoint && cell === cellAt(state.grid, state.waypoint)))) ||
-      (kind === 'destination' && (cell === cellAt(state.grid, state.start) || (state.waypoint && cell === cellAt(state.grid, state.waypoint)))) ||
-      (kind === 'waypoint' && [state.start, state.destination].some((other) => cell === cellAt(state.grid, other)))) {
+  const sameStop = (a, b) => {
+    const first = cellAt(state.grid, a), second = cellAt(state.grid, b);
+    return first !== null && second !== null ? first === second : distanceMeters(a, b, state.grid.radiusMeters) < 10;
+  };
+  if ((kind === 'start' && (sameStop(point, state.destination) || (state.waypoint && sameStop(point, state.waypoint)))) ||
+      (kind === 'destination' && (sameStop(point, state.start) || (state.waypoint && sameStop(point, state.waypoint)))) ||
+      (kind === 'waypoint' && [state.start, state.destination].some((other) => sameStop(point, other)))) {
     setStatus('Choose a different terrain cell for each route stop.', 'error');
     return false;
   }
@@ -254,7 +292,9 @@ function setPoint(kind, point) {
   updatePointLabels();
   renderSites();
   drawOverlay();
-  setStatus(`${kind === 'start' ? 'Start' : kind === 'waypoint' ? 'Waypoint' : 'Destination'} set. Calculate to update routes.`, 'ready');
+  const cell = cellAt(state.grid, point);
+  const covered = cell !== null && Number.isFinite(state.grid.elevationsMeters[cell]);
+  setStatus(covered ? `${kind === 'start' ? 'Start' : kind === 'waypoint' ? 'Waypoint' : 'Destination'} set. Calculate to update routes.` : 'Point set for map exploration. Numerical routing is unavailable outside the CTX DEM.', covered ? 'ready' : 'error');
   return true;
 }
 
@@ -279,7 +319,7 @@ function updatePointLabels() {
   $('#pickStart').classList.toggle('active', state.pick === 'start');
   $('#pickDestination').classList.toggle('active', state.pick === 'destination');
   $('#pickWaypoint').classList.toggle('active', state.pick === 'waypoint');
-  $('#pickHint').textContent = `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Points outside measured terrain are rejected.`;
+  $('#pickHint').textContent = `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Routing requires the measured CTX terrain footprint; outside points remain selectable for exploration.`;
   const selected = state[state.pick];
   $('#latInput').value = selected?.lat.toFixed(5) ?? '';
   $('#lonInput').value = selected?.lon.toFixed(5) ?? '';
@@ -295,7 +335,9 @@ function setStatus(message, type = 'ready') {
 function updateOverview() {
   const selected = state.routes[state.selectedRoute];
   const routeLine = selected?.points ? `${fmt.distance(selected.distanceMeters)} · ${fmt.minutes(selected.estimatedMinutes)} one-way` : 'Calculate routes for the current plan';
-  $('#missionOverview').innerHTML = `<strong>Jezero traverse study</strong><dl><div><dt>Start</dt><dd>${fmt.coord(state.start.lat)}°N, ${fmt.coord(state.start.lon)}°E</dd></div><div><dt>Destination</dt><dd>${fmt.coord(state.destination.lat)}°N, ${fmt.coord(state.destination.lon)}°E</dd></div><div><dt>Waypoint</dt><dd>${state.waypoint ? `${fmt.coord(state.waypoint.lat)}°N, ${fmt.coord(state.waypoint.lon)}°E` : 'None'}</dd></div><div><dt>Slope limit</dt><dd>${state.maxSlope.toFixed(1)}° per cell edge</dd></div><div><dt>Time budget</dt><dd>${fmt.minutes(state.timeBudgetMinutes)} one-way</dd></div></dl><p>${routeLine}</p><small>Scenario estimate — not a certified EVA assessment.</small>`;
+  const stops = [state.start, state.destination, ...(state.waypoint ? [state.waypoint] : [])];
+  const allCovered = state.grid && stops.every((point) => { const index = cellAt(state.grid, point); return index !== null && Number.isFinite(state.grid.elevationsMeters[index]); });
+  $('#missionOverview').innerHTML = `<strong>Jezero traverse study</strong><dl><div><dt>Start</dt><dd>${fmt.coord(state.start.lat)}°N, ${fmt.coord(state.start.lon)}°E</dd></div><div><dt>Destination</dt><dd>${fmt.coord(state.destination.lat)}°N, ${fmt.coord(state.destination.lon)}°E</dd></div><div><dt>Waypoint</dt><dd>${state.waypoint ? `${fmt.coord(state.waypoint.lat)}°N, ${fmt.coord(state.waypoint.lon)}°E` : 'None'}</dd></div><div><dt>Slope limit</dt><dd>${state.maxSlope.toFixed(1)}° per cell edge</dd></div><div><dt>Time budget</dt><dd>${fmt.minutes(state.timeBudgetMinutes)} one-way</dd></div><div><dt>Terrain data</dt><dd>${allCovered ? 'All stops covered' : 'Some stops outside coverage'}</dd></div></dl><p>${routeLine}</p><small>Scenario estimate — not a certified EVA assessment.</small>`;
 }
 
 function readScenarios() {
@@ -331,10 +373,11 @@ function saveScenario() {
 
 function restoreScenario(id) {
   const plan = savedScenarios.find((item) => item.id === id);
-  const validPoint = (point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lon) && cellAt(state.grid, point) !== null && Number.isFinite(state.grid.elevationsMeters[cellAt(state.grid, point)]);
+  const validPoint = (point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lon) && Math.abs(point.lat) <= 90 && Math.abs(point.lon) <= 180;
+  const sameStop = (a, b) => { const first = cellAt(state.grid, a), second = cellAt(state.grid, b); return first !== null && second !== null ? first === second : distanceMeters(a, b, state.grid.radiusMeters) < 10; };
   if (!plan || !validPoint(plan.start) || !validPoint(plan.destination) || (plan.waypoint && !validPoint(plan.waypoint)) ||
-      cellAt(state.grid, plan.start) === cellAt(state.grid, plan.destination) ||
-      (plan.waypoint && [plan.start, plan.destination].some((point) => cellAt(state.grid, point) === cellAt(state.grid, plan.waypoint))) ||
+      sameStop(plan.start, plan.destination) ||
+      (plan.waypoint && [plan.start, plan.destination].some((point) => sameStop(point, plan.waypoint))) ||
       !(plan.maxSlope >= .1 && plan.maxSlope <= 35) || !(plan.speed >= .2 && plan.speed <= 1.5) ||
       !(plan.timeBudgetMinutes >= 30 && plan.timeBudgetMinutes <= 480)) {
     setStatus('Saved plan is incompatible with the current terrain grid or controls.', 'error'); return;
@@ -468,7 +511,8 @@ function evidence(key) {
   document.querySelectorAll('.source-tabs button').forEach((b) => b.classList.toggle('active', b.dataset.evidence === key));
   const card = $('#evidenceCard');
   if (key === 'dem') {
-    card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED NUMERICAL DATA</div><h3>CTX elevation mosaic</h3><p>USGS terrain model created from MRO Context Camera stereo observations for Mars 2020 terrain relative navigation.</p><dl><div><dt>MISSION / INSTRUMENT</dt><dd>MRO · Context Camera</dd></div><div><dt>NATIVE GRID</dt><dd>20 m per cell</dd></div><div><dt>PRODUCT</dt><dd>JEZ_ctx_B_soc_008_DTM…</dd></div><div><dt>REFERENCE</dt><dd>East-positive, planetocentric; 3,396,190 m sphere</dd></div></dl><div class="evidence-limit"><strong>What it supports</strong><p>Regional elevation differences and modelled slopes at cell scale. It cannot reveal every rock, soft soil patch or EVA hazard.</p></div><a href="${state.grid?.productPage || 'https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_ctx_dtm_mosaic'}" target="_blank" rel="noopener">View USGS source ↗</a></div>`;
+    const sourceHash = state.grid?.sourceSha256 ? `${state.grid.sourceSha256.slice(0, 12)}…` : 'Recorded in terrain metadata';
+    card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED NUMERICAL DATA</div><h3>CTX elevation mosaic</h3><p>USGS terrain model created from MRO Context Camera observations for Mars 2020 terrain relative navigation.</p><dl><div><dt>MISSION / INSTRUMENT</dt><dd>MRO · Context Camera</dd></div><div><dt>NATIVE GRID</dt><dd>20 m per cell</dd></div><div><dt>PRODUCT</dt><dd>JEZ_ctx_B_soc_008_DTM…</dd></div><div><dt>REFERENCE</dt><dd>East-positive, planetocentric; 3,396,190 m sphere</dd></div><div><dt>SOURCE SHA-256</dt><dd title="${state.grid?.sourceSha256 || ''}">${sourceHash}</dd></div><div><dt>PACKAGE CHECK</dt><dd>Verified before routing</dd></div></dl><div class="evidence-limit"><strong>What it supports</strong><p>Regional elevation differences and modelled slopes at cell scale. It cannot reveal every rock, soft soil patch or EVA hazard.</p></div><a href="${state.grid?.productPage || 'https://astrogeology.usgs.gov/search/map/mars_2020_terrain_relative_navigation_ctx_dtm_mosaic'}" target="_blank" rel="noopener">View USGS source ↗</a></div>`;
   } else {
     const layer = MAP_LAYERS[key];
     card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED ORBITAL PRODUCT</div><h3>${escapeHtml(layer.title)}</h3><p>Displayed through NASA Mars Trek WMTS. This visual layer is separate from the numerical terrain grid used for routing.</p><dl><div><dt>MISSION</dt><dd>${escapeHtml(layer.mission)}</dd></div><div><dt>INSTRUMENT</dt><dd>${escapeHtml(layer.instrument)}</dd></div><div><dt>RESOLUTION</dt><dd>${escapeHtml(layer.resolution)}</dd></div></dl><div class="evidence-limit"><strong>Interpretation limit</strong><p>${escapeHtml(layer.limitation)}</p></div><a href="${layer.link}" target="_blank" rel="noopener">View NASA layer catalog ↗</a></div>`;
@@ -506,6 +550,9 @@ function exportBrief() {
     `Resolution: ${state.grid.resolutionMeters} m per cell`,
     `Source: ${state.grid.sourceUrl}`,
     `USGS record: ${state.grid.productPage}`,
+    `Source SHA-256: ${state.grid.sourceSha256}`,
+    `Terrain package SHA-256 (verified in browser before routing): ${state.grid.elevationSha256}`,
+    `Transport quantization: ${state.grid.valueStepMeters} m; measured maximum error: ${state.grid.maximumQuantizationErrorMeters} m`,
     `Processing: ${state.grid.processing}`,
     'Basemap and optional visual layers: NASA Mars Trek WMTS — https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars',
     `Hogwallow Flats Sol 464 location: ${HOGWALLOW_SOURCE}`, '',
@@ -550,7 +597,8 @@ $('#themisOpacity').addEventListener('input', (e) => { state.themisOpacity = Num
 document.querySelectorAll('[data-evidence]').forEach((button) => button.addEventListener('click', () => evidence(button.dataset.evidence)));
 $('#zoomIn').addEventListener('click', () => zoom(1));
 $('#zoomOut').addEventListener('click', () => zoom(-1));
-$('#resetMap').addEventListener('click', () => { state.center = { lat: 18.458, lon: 77.430 }; state.zoom = 11; drawTiles(); });
+$('#resetMap').addEventListener('click', fitCoverage);
+$('#focusRoute').addEventListener('click', focusRoute);
 $('#fullscreenMap').addEventListener('click', async () => {
   try {
     if (document.fullscreenElement === map) await document.exitFullscreen();
@@ -601,17 +649,28 @@ renderScenarios();
 renderSites();
 evidence('dem');
 drawTiles();
-fetch(new URL('../public/data/jezero-grid.json', import.meta.url)).then((response) => {
+fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((response) => {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
+}).then(async (metadata) => {
+  const response = await fetch(new URL(`../public/data/${metadata.elevationFile}`, import.meta.url));
+  if (!response.ok) throw new Error(`Elevation file HTTP ${response.status}`);
+  const buffer = await response.arrayBuffer();
+  const hash = Array.from(new Uint8Array(await crypto.subtle.digest('SHA-256', buffer)), (byte) => byte.toString(16).padStart(2, '0')).join('');
+  if (hash !== metadata.elevationSha256) throw new Error('Elevation file checksum does not match its source metadata');
+  return decodeTerrain(metadata, buffer);
 }).then((grid) => {
   if (grid.elevationsMeters.length !== grid.width * grid.height) throw new Error('Terrain grid has inconsistent dimensions');
   state.grid = grid;
+  const widthKm = grid.width * grid.resolutionMeters / 1000;
+  const heightKm = grid.height * grid.resolutionMeters / 1000;
+  $('#coverageInfo').textContent = `Measured CTX terrain: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${(grid.width * grid.height).toLocaleString()} cells. Use ⌖ to fit the full footprint or ↗ to focus your route.`;
+  $('#coverageKeyText').textContent = `CTX DEM · ${Math.round(widthKm)} × ${Math.round(heightKm)} KM`;
   renderScenarios();
   renderSites();
   evidence('dem');
-  setStatus(`CTX terrain ready · ${grid.width} × ${grid.height} cells at 20 m.`);
-  drawTiles();
+  setStatus(`CTX terrain ready · ${(grid.width * grid.height).toLocaleString()} measured cells at 20 m.`);
+  fitCoverage();
   calculate();
 }).catch((error) => {
   setStatus(`Numerical terrain unavailable: ${error.message}. Routing is disabled.`, 'error');

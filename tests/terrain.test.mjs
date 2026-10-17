@@ -1,12 +1,26 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cellAt, distanceMeters, planRoute, planRouteVia, pointAt } from '../src/terrain.js';
+import { createHash } from 'node:crypto';
+import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia, pointAt } from '../src/terrain.js';
 
-const grid = JSON.parse(readFileSync(new URL('../public/data/jezero-grid.json', import.meta.url)));
+const metadata = JSON.parse(readFileSync(new URL('../public/data/jezero-grid-meta.json', import.meta.url)));
+const encoded = readFileSync(new URL('../public/data/jezero-elevation-u16.bin', import.meta.url));
+const grid = decodeTerrain(metadata, encoded.buffer.slice(encoded.byteOffset, encoded.byteOffset + encoded.byteLength));
 const landing = { lat: 18.44463, lon: 77.45088 };
 const hogwallow = { lat: 18.44272865, lon: 77.38228798 };
 const sol426 = { lat: 18.42416332, lon: 77.42524624 };
+
+test('terrain metadata preserves the verified NASA/USGS source identity', () => {
+  assert.equal(metadata.sourceId, 'JEZ_ctx_B_soc_008_DTM_MOLAtopography_DeltaGeoid_20m_Eqc_latTs0_lon0');
+  assert.equal(metadata.sourceSha256, '16a1aa66c3f48c1bca252795827db7b417876217aff0f5e1aff18027fab2327b');
+  assert.equal(metadata.width, 1596);
+  assert.equal(metadata.height, 1512);
+  assert.equal(metadata.resolutionMeters, 20);
+  assert.equal(metadata.radiusMeters, 3396190);
+  assert.equal(metadata.validCells, metadata.width * metadata.height);
+  assert.equal(createHash('sha256').update(encoded).digest('hex'), metadata.elevationSha256);
+});
 
 test('Mars distance uses the source radius', () => {
   const expected = grid.radiusMeters * Math.PI / 180;
@@ -42,8 +56,8 @@ test('unreachable slope constraint reports no path', () => {
 test('unknown or identical endpoints are rejected', () => {
   assert.match(planRoute(grid, landing, landing).error, /different/);
   assert.match(planRoute(grid, { lat: 0, lon: 0 }, hogwallow).error, /outside/);
-  const copy = { ...grid, elevationsMeters: [...grid.elevationsMeters] };
-  copy.elevationsMeters[cellAt(copy, landing)] = null;
+  const copy = { ...grid, elevationsMeters: grid.elevationsMeters.slice() };
+  copy.elevationsMeters[cellAt(copy, landing)] = NaN;
   assert.match(planRoute(copy, landing, hogwallow).error, /no numerical elevation/);
 });
 

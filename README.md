@@ -6,9 +6,9 @@ An independent Marswalk research prototype that turns NASA/USGS Jezero observati
 
 ## What works
 
-- Interactive Jezero map with NASA Mars Trek CTX basemap, MOLA basemap option, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
-- NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can also select points on the map or enter coordinates within measured coverage.
-- Real A* graph search over a cropped **numeric** MRO CTX/USGS 20 m DEM. The graph refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells.
+- Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
+- NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can select any Mars coordinate for map exploration; route calculations require the measured DEM footprint.
+- Real A* graph search over the full **numeric** MRO CTX/USGS 20 m Jezero DEM footprint: 1,596 × 1,512 cells (31.9 × 30.2 km). The graph refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells.
 - Shortest available and terrain-conservative profiles, plus an optional route through a user-selected waypoint. Results include computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.
 - A hypothetical one-way time budget that flags each computed route as within or over the threshold.
 - Mission overview and named plans saved in browser storage; loading a plan restores points, constraints, and map layers, then recalculates routes.
@@ -23,7 +23,7 @@ The browser app has no JavaScript package dependencies.
 python -m http.server 4173
 ```
 
-Open `http://localhost:4173/`. The checked-in `public/data/jezero-grid.json` is the compact research grid; the much larger source GeoTIFF is not needed for normal use.
+Open `http://localhost:4173/`. The checked-in terrain package is `public/data/jezero-grid-meta.json` plus `public/data/jezero-elevation-u16.bin`; the much larger source GeoTIFF is not needed for normal use. The app verifies the binary package SHA-256 before enabling routing.
 
 ```powershell
 node --test tests/*.test.mjs
@@ -34,15 +34,16 @@ node scripts/build.mjs
 
 ## Reproduce the terrain grid
 
-The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `scripts/extract_dem.py`. Download it to `.data-cache/jezero_ctx_dtm_20m.tif`, install Rasterio in a Python environment, and run the script. The script verifies expected dimensions, crops the study area, rejects missing values, and writes the compact JSON grid. No interpolation or synthetic elevation is used.
+The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `scripts/extract_dem.py`. Download it to `.data-cache/jezero_ctx_dtm_20m.tif`, install Rasterio in a Python environment, and run the script. The script verifies expected dimensions, preserves the entire source raster, rejects missing cells, records the source SHA-256, and writes metadata plus a binary elevation package. No reprojection, interpolation, or synthetic elevation is used. Elevations are transport-quantized to 0.02 m; the measured maximum quantization error is 0.01 m.
 
 ## Project structure
 
 - `src/main.js` — mission workspace, map layers, evidence cards, interaction, and export.
 - `src/terrain.js` — Mars distances, grid coordinates, A* search, slope limits, and route metrics.
 - `src/style.css` — responsive interface.
-- `public/data/jezero-grid.json` — numeric study-area terrain with source metadata.
-- `scripts/extract_dem.py` — reproducible source crop.
+- `public/data/jezero-grid-meta.json` — source metadata, geometry, processing record, and checksums.
+- `public/data/jezero-elevation-u16.bin` — numeric full-footprint elevation package.
+- `scripts/extract_dem.py` — reproducible source packaging.
 - `tests/terrain.test.mjs` — geospatial and route checks.
 
 ## Documentation
@@ -56,4 +57,4 @@ The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `sc
 
 ## Development status
 
-The app is a functional deployed research prototype. It still needs broader usability review and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.
+The app is a functional deployed research prototype. NASA/USGS product-backed terrain, imagery, and cited rover coordinates are separated from computed route outputs and user-set scenario assumptions. It does not contain every Mars dataset, live operational telemetry, or an astronaut-certifiable hazard model. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.

@@ -1,6 +1,21 @@
 export const GRID_RADIUS_M = 3396190;
 const RAD = Math.PI / 180;
 
+export function decodeTerrain(metadata, buffer) {
+  if (metadata.elevationEncoding !== 'uint16-le' || !Number.isInteger(metadata.width) || !Number.isInteger(metadata.height) ||
+      metadata.width <= 0 || metadata.height <= 0 || buffer.byteLength !== metadata.width * metadata.height * 2 ||
+      !Number.isFinite(metadata.valueOffsetMeters) || !(metadata.valueStepMeters > 0)) {
+    throw new Error('Terrain data has invalid dimensions or encoding.');
+  }
+  const view = new DataView(buffer);
+  const elevationsMeters = new Float32Array(metadata.width * metadata.height);
+  for (let i = 0; i < elevationsMeters.length; i++) {
+    const encoded = view.getUint16(i * 2, true);
+    elevationsMeters[i] = encoded === 65535 ? NaN : metadata.valueOffsetMeters + encoded * metadata.valueStepMeters;
+  }
+  return { ...metadata, elevationsMeters };
+}
+
 export function cellAt(grid, point) {
   const col = Math.round((point.lon - grid.westCenterLon) / grid.degreesPerPixelLon);
   const row = Math.round((grid.northCenterLat - point.lat) / grid.degreesPerPixelLat);

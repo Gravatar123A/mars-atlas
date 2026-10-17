@@ -1,4 +1,4 @@
-"""Create a small, source-traceable Jezero grid from the USGS CTX DEM.
+"""Package the full source-traceable Jezero CTX DEM for browser routing.
 
 Run with PYTHONPATH pointing at the local rasterio installation. The original
 GeoTIFF is available from the URL in SOURCE_URL. No value is interpolated.
@@ -19,11 +19,9 @@ SOURCE_URL = (
 SOURCE_ID = "JEZ_ctx_B_soc_008_DTM_MOLAtopography_DeltaGeoid_20m_Eqc_latTs0_lon0"
 RADIUS_M = 3_396_190.0
 INPUT = Path(".data-cache/jezero_ctx_dtm_20m.tif")
-OUTPUT = Path("public/data/jezero-grid.json")
-
-
-def projected(lon: float, lat: float) -> tuple[float, float]:
-    return RADIUS_M * math.radians(lon), RADIUS_M * math.radians(lat)
+OUTPUT_META = Path("public/data/jezero-grid-meta.json")
+OUTPUT_VALUES = Path("public/data/jezero-elevation-u16.bin")
+QUANTIZATION_METERS = 0.02
 
 
 def main() -> None:
@@ -34,23 +32,23 @@ def main() -> None:
         if ds.width != 1596 or ds.height != 1512 or abs(ds.res[0] - 20) > 0.01:
             raise SystemExit("Unexpected CTX DEM dimensions or resolution")
 
-        north_row, west_col = ds.index(*projected(77.35, 18.50))
-        south_row, east_col = ds.index(*projected(77.51, 18.42))
-        row_start, row_stop = sorted((north_row, south_row))
-        col_start, col_stop = sorted((west_col, east_col))
-        row_stop += 1
-        col_stop += 1
-
-        from rasterio.windows import Window
-
-        window = Window(col_start, row_start, col_stop - col_start, row_stop - row_start)
-        values = ds.read(1, window=window, masked=True)
+        values = ds.read(1, masked=True)
         if np.ma.is_masked(values) and np.any(np.ma.getmaskarray(values)):
-            raise SystemExit("Selected study area contains missing elevation cells")
+            raise SystemExit("Source DEM contains missing elevation cells; mask-aware packaging required")
 
-        x0, y0 = ds.xy(row_start, col_start)
+        x0, y0 = ds.xy(0, 0)
         dlon = math.degrees(ds.res[0] / RADIUS_M)
         dlat = math.degrees(ds.res[1] / RADIUS_M)
+        raw = values.filled(np.nan).astype(np.float64)
+        if not np.isfinite(raw).all():
+            raise SystemExit("Non-finite elevation in source DEM")
+        offset = math.floor(float(raw.min()) / QUANTIZATION_METERS) * QUANTIZATION_METERS
+        scaled = (raw - offset) / QUANTIZATION_METERS
+        if np.max(scaled) >= 65535:
+            raise SystemExit("DEM range exceeds UInt16 quantization capacity")
+        encoded = np.rint(scaled).astype(np.uint16)
+        decoded = offset + encoded.astype(np.float64) * QUANTIZATION_METERS
+        maximum_error = float(np.max(np.abs(raw - decoded)))
         grid = {
             "sourceId": SOURCE_ID,
             "sourceUrl": SOURCE_URL,
@@ -68,14 +66,20 @@ def main() -> None:
             "northCenterLat": math.degrees(y0 / RADIUS_M),
             "degreesPerPixelLon": dlon,
             "degreesPerPixelLat": dlat,
-            "elevationsMeters": [round(float(v), 2) for v in values.filled(np.nan).flat],
-            "processing": "Window crop only; no reprojection, interpolation, or invented cells. Values rounded to 0.01 m for transport.",
+            "elevationEncoding": "uint16-le",
+            "elevationFile": OUTPUT_VALUES.name,
+            "valueOffsetMeters": round(offset, 8),
+            "valueStepMeters": QUANTIZATION_METERS,
+            "maximumQuantizationErrorMeters": round(maximum_error, 6),
+            "validCells": int(encoded.size),
+            "processing": "Full source raster; no crop, reprojection, interpolation, or invented cells. Elevation quantized to 0.02 m for transport.",
         }
-        if any(not math.isfinite(v) for v in grid["elevationsMeters"]):
-            raise SystemExit("Non-finite elevation after extraction")
-        OUTPUT.parent.mkdir(parents=True, exist_ok=True)
-        OUTPUT.write_text(json.dumps(grid, separators=(",", ":")), encoding="utf-8")
-        print(f"Wrote {OUTPUT}: {grid['width']} × {grid['height']} cells, {OUTPUT.stat().st_size:,} bytes")
+        OUTPUT_META.parent.mkdir(parents=True, exist_ok=True)
+        encoded.astype("<u2", copy=False).tofile(OUTPUT_VALUES)
+        grid["elevationSha256"] = hashlib.sha256(OUTPUT_VALUES.read_bytes()).hexdigest()
+        OUTPUT_META.write_text(json.dumps(grid, separators=(",", ":")), encoding="utf-8")
+        print(f"Wrote {OUTPUT_META} and {OUTPUT_VALUES}: {grid['width']} × {grid['height']} cells, {OUTPUT_VALUES.stat().st_size:,} bytes")
+        print(f"Maximum quantization error: {maximum_error:.5f} m")
         print(f"Top left center: {grid['northCenterLat']:.6f}°N, {grid['westCenterLon']:.6f}°E")
 
 
