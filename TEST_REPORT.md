@@ -24,6 +24,6 @@ Run date: 2026-10-17. Local and live GitHub Pages prototype.
 | Responsive layout | Mission view remains usable at narrower width | Browser screenshot at roughly 996 px showed the map, controls, and all three cards after layout correction; CSS also defines smaller breakpoints | Partial; mobile interaction not fully tested |
 | External tile failure | Numeric route remains available | Architecture separates cached grid from live map tiles | Not yet directly simulated in browser |
 | Expanded-footprint selection | User can select coordinates throughout the full source DEM and see outside-coverage status clearly | Local browser fit the 31.9 × 30.2 km footprint and calculated a route beyond the prior crop; outside-footprint selections remained explorable but routing returned a no-coverage error | Pass |
-| Hosted deployment | Built app resolves assets under `/mars-atlas/` and computes routes | Pending this expanded-footprint deployment | Pending |
+| Hosted deployment | Built app resolves assets under `/mars-atlas/` and computes routes | GitHub Pages workflow 39052249247 passed. Live browser verified the 31.9 × 30.2 km terrain package, checksum gate, source-hash display, and default 3.92 km / 4.83 km route profiles. | Pass |
 
 Automated command: `node --test tests/*.test.mjs` — **7 tests passed, 0 failed**. A full user study, mobile accessibility audit, vertical accuracy validation, and hosted end-to-end test remain open.
