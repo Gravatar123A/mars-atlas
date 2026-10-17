@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { cellAt, distanceMeters, planRoute, pointAt } from '../src/terrain.js';
+import { cellAt, distanceMeters, planRoute, planRouteVia, pointAt } from '../src/terrain.js';
 
 const grid = JSON.parse(readFileSync(new URL('../public/data/jezero-grid.json', import.meta.url)));
 const landing = { lat: 18.44463, lon: 77.45088 };
@@ -44,4 +44,22 @@ test('unknown or identical endpoints are rejected', () => {
   const copy = { ...grid, elevationsMeters: [...grid.elevationsMeters] };
   copy.elevationsMeters[cellAt(copy, landing)] = null;
   assert.match(planRoute(copy, landing, hogwallow).error, /no numerical elevation/);
+});
+
+test('waypoint itinerary visits the selected grid cell and sums its legs', () => {
+  const waypoint = { lat: 18.451, lon: 77.416 };
+  const route = planRouteVia(grid, landing, [waypoint], hogwallow, { maxSlopeDeg: 10 });
+  assert.ok(route.points?.length > 2, route.error);
+  assert.equal(route.legs.length, 2);
+  assert.equal(route.points.length, route.segments.length + 1);
+  assert.equal(cellAt(grid, route.points[route.waypointIndices[0]]), cellAt(grid, waypoint));
+  assert.ok(Math.abs(route.distanceMeters - route.legs.reduce((sum, leg) => sum + leg.distanceMeters, 0)) < 0.001);
+});
+
+test('diagonal movement cannot cross a missing-data corner', () => {
+  const small = { width: 2, height: 2, westCenterLon: 0, northCenterLat: 1,
+    degreesPerPixelLon: 0.001, degreesPerPixelLat: 0.001, radiusMeters: 3396190,
+    elevationsMeters: [0, null, null, 0] };
+  const result = planRoute(small, pointAt(small, 0), pointAt(small, 3), { maxSlopeDeg: 15 });
+  assert.match(result.error, /No route/);
 });

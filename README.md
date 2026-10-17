@@ -6,8 +6,9 @@ An independent Marswalk research prototype that turns NASA/USGS Jezero observati
 
 - Interactive Jezero map with NASA Mars Trek CTX basemap, MOLA basemap option, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
 - NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can also select points on the map or enter coordinates within measured coverage.
-- Real A* graph search over a cropped **numeric** MRO CTX/USGS 20 m DEM. The graph refuses missing data and edges steeper than the user limit.
-- Shortest available and terrain-conservative profiles with computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.
+- Real A* graph search over a cropped **numeric** MRO CTX/USGS 20 m DEM. The graph refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells.
+- Shortest available and terrain-conservative profiles, plus an optional route through a user-selected waypoint. Results include computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.
+- A hypothetical one-way time budget that flags each computed route as within or over the threshold.
 - Source inspector, segment explanation, no-route state, and a Markdown mission brief export with actual computed values and source links.
 
 ## Run locally
@@ -51,4 +52,4 @@ The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `sc
 
 ## Development status
 
-The app is a functional local research prototype. It still needs broader usability review, a hosted deployment, and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. Future work should prioritize validated science-site geometry, confidence masks, better terrain uncertainty estimates, and explicit third-route science objectives before 3D or AI features.
+The app is a functional local research prototype. It still needs broader usability review, a hosted deployment, and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated science-site geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.

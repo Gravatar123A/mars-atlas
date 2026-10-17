@@ -1,4 +1,4 @@
-import { cellAt, distanceMeters, planRoute, pointAt } from './terrain.js';
+import { cellAt, distanceMeters, planRoute, planRouteVia } from './terrain.js';
 
 const $ = (selector) => document.querySelector(selector);
 const app = $('#app');
@@ -24,8 +24,10 @@ const state = {
   pick: 'destination',
   start: LANDING,
   destination: HOGWALLOW_SOL464,
+  waypoint: null,
   maxSlope: 5,
   speed: 0.75,
+  timeBudgetMinutes: 120,
   routes: {},
   selectedRoute: 'conservative',
   activeEvidence: 'dem',
@@ -61,6 +63,8 @@ app.innerHTML = `
           <div class="field-heading destination-heading"><span>DESTINATION</span><button class="text-button" id="roverBtn">Use Sol 464 location ↗</button></div>
           <div class="point-input"><span class="point-icon dest-icon"></span><div><strong id="destLabel">Hogwallow Flats · Sol 464</strong><small id="destCoords"></small></div><button id="pickDestination" aria-label="Choose destination on map">◎</button></div>
           <a class="point-source" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA record for this rover location ↗</a>
+          <div class="field-heading destination-heading"><span>OPTIONAL WAYPOINT</span><button class="text-button" id="clearWaypoint">Clear stop</button></div>
+          <div class="point-input"><span class="point-icon waypoint-icon"></span><div><strong id="waypointLabel">No intermediate stop</strong><small id="waypointCoords">Add a map point to compare a route through it</small></div><button id="pickWaypoint" aria-label="Choose waypoint on map">◎</button></div>
           <div class="pick-hint" id="pickHint">Click the map to choose a destination. Map points outside the measured terrain are rejected.</div>
           <details class="coordinate-details"><summary>Enter precise coordinates</summary><div class="coordinate-form"><label>Latitude (°N)<input id="latInput" type="number" step="0.00001" min="-90" max="90"></label><label>Longitude (°E)<input id="lonInput" type="number" step="0.00001" min="-180" max="180"></label><button id="applyCoords" class="outline-button">Set selected point</button></div></details>
           <div class="divider"></div>
@@ -72,6 +76,9 @@ app.innerHTML = `
           <div class="slider-label speed-label"><label for="speedRange">Assumed walking speed</label><strong id="speedValue">0.75 m/s</strong></div>
           <input id="speedRange" class="range" type="range" min="0.2" max="1.5" step="0.05" value="0.75">
           <div class="model-note">Used for a simple one-way travel-time estimate; it does not model EVA operations.</div>
+          <div class="slider-label speed-label"><label for="budgetRange">One-way time budget</label><strong id="budgetValue">2 h 0 m</strong></div>
+          <input id="budgetRange" class="range" type="range" min="30" max="480" step="15" value="120">
+          <div class="model-note">Hypothetical planning threshold. It excludes stops, return travel, and EVA operations.</div>
           <button class="primary-button" id="calculateBtn"><span>Calculate route alternatives</span><span>→</span></button>
           <div id="routeStatus" class="status-line" role="status">Loading NASA terrain data…</div>
           <div class="divider"></div>
@@ -187,12 +194,13 @@ function drawOverlay() {
   const routes = Object.entries(state.routes).filter(([, route]) => route?.points);
   const paths = routes.map(([key, route]) => {
     const active = key === state.selectedRoute;
-    const color = key === 'shortest' ? '#e8ad71' : '#8cddcd';
+    const color = key === 'shortest' ? '#e8ad71' : key === 'waypoint' ? '#dcb5ef' : '#8cddcd';
     return `<path d="${svgPath(route.points)}" fill="none" stroke="${color}" stroke-width="${active ? 4 : 2.4}" stroke-linecap="round" stroke-linejoin="round" opacity="${active ? 1 : 0.72}"/>`;
   }).join('');
   const markers = [
     { point: state.start, color: '#e8ad71', label: 'START' },
     { point: state.destination, color: '#8cddcd', label: 'DESTINATION' },
+    ...(state.waypoint ? [{ point: state.waypoint, color: '#dcb5ef', label: 'WAYPOINT' }] : []),
   ].map(({ point, color, label }) => { const p = screen(point); return `<g><circle cx="${p.x}" cy="${p.y}" r="12" fill="${color}" opacity=".18"/><circle cx="${p.x}" cy="${p.y}" r="5" fill="${color}" stroke="#101820" stroke-width="2"/><text x="${p.x + 13}" y="${p.y - 10}" fill="#f7f3eb" font-size="10" font-weight="700" letter-spacing="1.5" paint-order="stroke" stroke="#111a20" stroke-width="3">${label}</text></g>`; }).join('');
   const grid = state.grid;
   let bounds = '';
@@ -214,19 +222,26 @@ function drawScale() {
 }
 
 function setPoint(kind, point) {
-  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) || !state.grid || cellAt(state.grid, point) === null) {
+  if (!Number.isFinite(point.lat) || !Number.isFinite(point.lon) || !state.grid || cellAt(state.grid, point) === null || !Number.isFinite(state.grid.elevationsMeters[cellAt(state.grid, point)])) {
     setStatus('That point is outside the measured CTX terrain grid.', 'error');
     return false;
   }
   state[kind] = point;
+  invalidateRoutes();
+  updatePointLabels();
+  drawOverlay();
+  setStatus(`${kind === 'start' ? 'Start' : kind === 'waypoint' ? 'Waypoint' : 'Destination'} set. Calculate to update routes.`, 'ready');
+  return true;
+}
+
+function invalidateRoutes() {
+  calculationRevision++;
   state.routes = {};
   $('#routeCards').innerHTML = '';
   $('#routeCount').textContent = '0 routes';
   $('#comparisonNote').textContent = 'Points changed. Calculate routes to update the comparison.';
-  updatePointLabels();
-  drawOverlay();
-  setStatus(`${kind === 'start' ? 'Start' : 'Destination'} set. Calculate to update routes.`, 'ready');
-  return true;
+  $('#routeInsight').innerHTML = '<div class="empty-icon">⌁</div><strong>Awaiting a route</strong><p>Calculate alternatives for the current points.</p>';
+  $('#routeTableBody').innerHTML = '<tr><td colspan="4">Calculate routes to populate this table.</td></tr>';
 }
 
 function updatePointLabels() {
@@ -234,12 +249,15 @@ function updatePointLabels() {
   $('#destCoords').textContent = `${fmt.coord(state.destination.lat)}°N  ${fmt.coord(state.destination.lon)}°E`;
   $('#startLabel').textContent = distanceMeters(state.start, LANDING) < 15 ? 'Octavia E. Butler Landing' : 'Selected map point';
   $('#destLabel').textContent = distanceMeters(state.destination, HOGWALLOW_SOL464) < 15 ? 'Hogwallow Flats · Sol 464' : 'Selected map point';
+  $('#waypointLabel').textContent = state.waypoint ? 'Selected map waypoint' : 'No intermediate stop';
+  $('#waypointCoords').textContent = state.waypoint ? `${fmt.coord(state.waypoint.lat)}°N  ${fmt.coord(state.waypoint.lon)}°E` : 'Add a map point to compare a route through it';
   $('#pickStart').classList.toggle('active', state.pick === 'start');
   $('#pickDestination').classList.toggle('active', state.pick === 'destination');
-  $('#pickHint').textContent = `Click the map to choose ${state.pick === 'start' ? 'a starting point' : 'a destination'}. Points outside the measured terrain are rejected.`;
+  $('#pickWaypoint').classList.toggle('active', state.pick === 'waypoint');
+  $('#pickHint').textContent = `Click the map to choose ${state.pick === 'start' ? 'a starting point' : state.pick === 'waypoint' ? 'an intermediate waypoint' : 'a destination'}. Points outside measured terrain are rejected.`;
   const selected = state[state.pick];
-  $('#latInput').value = selected.lat.toFixed(5);
-  $('#lonInput').value = selected.lon.toFixed(5);
+  $('#latInput').value = selected?.lat.toFixed(5) ?? '';
+  $('#lonInput').value = selected?.lon.toFixed(5) ?? '';
 }
 
 function setStatus(message, type = 'ready') {
@@ -250,24 +268,28 @@ function setStatus(message, type = 'ready') {
 
 function routeCard(key, route) {
   const active = state.selectedRoute === key;
-  const title = key === 'shortest' ? 'Shortest available' : 'Terrain conservative';
-  const description = key === 'shortest' ? 'Minimum horizontal distance under the slope limit' : 'Penalizes steeper measured segments';
+  const title = key === 'shortest' ? 'Shortest available' : key === 'waypoint' ? 'Via waypoint' : 'Terrain conservative';
+  const description = key === 'shortest' ? 'Minimum horizontal distance under the slope limit' : key === 'waypoint' ? 'Visits the selected stop using shortest valid legs' : 'Penalizes steeper measured segments';
   if (route.error) return `<button class="route-card unavailable" disabled><span class="route-card-kicker">${title}</span><strong>No valid route</strong><small>${escapeHtml(route.error)}</small></button>`;
-  return `<button class="route-card ${active ? 'active' : ''} ${key}" data-route="${key}" aria-pressed="${active}"><span class="route-card-top"><span class="route-card-kicker">${title}</span><span class="route-arrow">↗</span></span><strong>${fmt.distance(route.distanceMeters)}</strong><small>${description}</small><span class="route-metrics"><span>↗ ${fmt.height(route.ascentMeters)} ascent</span><span>⌁ ${route.maxSlopeDeg.toFixed(1)}° max</span><span>◷ ${fmt.minutes(route.estimatedMinutes)}</span></span></button>`;
+  const budget = route.estimatedMinutes <= state.timeBudgetMinutes ? 'Within budget' : 'Over budget';
+  return `<button class="route-card ${active ? 'active' : ''} ${key}" data-route="${key}" aria-pressed="${active}"><span class="route-card-top"><span class="route-card-kicker">${title}</span><span class="route-arrow">↗</span></span><strong>${fmt.distance(route.distanceMeters)}</strong><small>${description}</small><span class="route-metrics"><span>↗ ${fmt.height(route.ascentMeters)} ascent</span><span>⌁ ${route.maxSlopeDeg.toFixed(1)}° max</span><span>◷ ${fmt.minutes(route.estimatedMinutes)}</span><span class="${budget === 'Over budget' ? 'over-budget' : 'within-budget'}">${budget}</span></span></button>`;
 }
 
 function updateResults() {
-  const { shortest, conservative } = state.routes;
-  const valid = [shortest, conservative].filter((r) => r?.points);
+  const { shortest, conservative, waypoint } = state.routes;
+  const entries = [['Shortest', shortest], ['Conservative', conservative], ...(state.waypoint ? [['Via waypoint', waypoint]] : [])];
+  const valid = entries.map(([, route]) => route).filter((r) => r?.points);
   $('#routeCount').textContent = `${valid.length} ${valid.length === 1 ? 'route' : 'routes'}`;
-  $('#routeCards').innerHTML = routeCard('shortest', shortest) + routeCard('conservative', conservative);
-  $('#routeTableBody').innerHTML = [['Shortest', shortest], ['Conservative', conservative]].map(([name, route]) => route?.points ? `<tr><th scope="row">${name}</th><td>${fmt.distance(route.distanceMeters)}</td><td>${route.maxSlopeDeg.toFixed(1)}°</td><td>${fmt.height(route.ascentMeters)}</td></tr>` : `<tr><th scope="row">${name}</th><td colspan="3">No valid route</td></tr>`).join('');
+  $('#routeCards').classList.toggle('has-waypoint', Boolean(state.waypoint));
+  $('#routeCards').innerHTML = routeCard('shortest', shortest) + routeCard('conservative', conservative) + (state.waypoint ? routeCard('waypoint', waypoint) : '');
+  $('#routeTableBody').innerHTML = entries.map(([name, route]) => route?.points ? `<tr><th scope="row">${name}</th><td>${fmt.distance(route.distanceMeters)}</td><td>${route.maxSlopeDeg.toFixed(1)}°</td><td>${fmt.height(route.ascentMeters)}</td></tr>` : `<tr><th scope="row">${name}</th><td colspan="3">No valid route</td></tr>`).join('');
   document.querySelectorAll('[data-route]').forEach((button) => button.addEventListener('click', () => { state.selectedRoute = button.dataset.route; updateResults(); drawOverlay(); updateInsight(); }));
-  if (valid.length === 2) {
+  if (shortest?.points && conservative?.points) {
     const samePath = conservative.points.length === shortest.points.length && conservative.points.every((p, i) => p.lat === shortest.points[i].lat && p.lon === shortest.points[i].lon);
     const delta = conservative.distanceMeters - shortest.distanceMeters;
     const extra = delta < 1 ? `${delta.toFixed(2)} m` : fmt.distance(delta);
-    $('#comparisonNote').textContent = samePath ? 'Both profiles chose the same path at this slope setting.' : `Conservative path adds ${extra} and lowers maximum sampled slope from ${shortest.maxSlopeDeg.toFixed(1)}° to ${conservative.maxSlopeDeg.toFixed(1)}°.`;
+    const comparison = samePath ? 'Both direct profiles chose the same path at this slope setting.' : `Conservative path adds ${extra} and lowers maximum sampled slope from ${shortest.maxSlopeDeg.toFixed(1)}° to ${conservative.maxSlopeDeg.toFixed(1)}°.`;
+    $('#comparisonNote').textContent = state.waypoint && waypoint?.points ? `${comparison} Waypoint route adds a required stop.` : comparison;
   } else $('#comparisonNote').textContent = 'Some profiles have no valid path under the current limit.';
   updateInsight();
   drawOverlay();
@@ -290,7 +312,10 @@ function updateInsight() {
   if (!route?.points) { $('#routeInsight').innerHTML = '<div class="empty-icon">⌁</div><strong>No selected route</strong><p>Adjust the slope limit or select points within the terrain grid.</p>'; return; }
   const total = route.distanceMeters;
   const source = state.grid;
-  $('#routeInsight').innerHTML = `<div class="insight-head"><span class="insight-dot"></span><strong>${state.selectedRoute === 'shortest' ? 'Shortest available' : 'Terrain conservative'}</strong></div><div class="insight-stats"><div><small>TRAVEL DISTANCE</small><strong>${fmt.distance(total)}</strong></div><div><small>MAX SEGMENT SLOPE</small><strong>${route.maxSlopeDeg.toFixed(1)}°</strong></div><div><small>ASCENT</small><strong>${fmt.height(route.ascentMeters)}</strong></div><div><small>TIME / ASSUMED</small><strong>${fmt.minutes(route.estimatedMinutes)}</strong></div></div>${profileSvg(route)}<p class="insight-copy">Computed from ${route.points.length} sampled cells in a ${source.resolutionMeters} m CTX elevation grid. ${state.selectedRoute === 'conservative' ? 'This cost function gives a larger penalty to steeper steps.' : 'This cost function minimizes horizontal distance.'} The ${state.maxSlope}° limit is applied to every graph edge.</p><button id="inspectSteepest" class="outline-button">Inspect steepest segment ↗</button>`;
+  const routeName = state.selectedRoute === 'shortest' ? 'Shortest available' : state.selectedRoute === 'waypoint' ? 'Via waypoint' : 'Terrain conservative';
+  const routeMethod = state.selectedRoute === 'conservative' ? 'This cost function gives a larger penalty to steeper steps.' : state.selectedRoute === 'waypoint' ? 'Each leg minimizes horizontal distance and visits the selected waypoint in order.' : 'This cost function minimizes horizontal distance.';
+  const budgetText = route.estimatedMinutes <= state.timeBudgetMinutes ? `Within the ${fmt.minutes(state.timeBudgetMinutes)} one-way budget by ${fmt.minutes(state.timeBudgetMinutes - route.estimatedMinutes)}.` : `Exceeds the ${fmt.minutes(state.timeBudgetMinutes)} one-way budget by ${fmt.minutes(route.estimatedMinutes - state.timeBudgetMinutes)}.`;
+  $('#routeInsight').innerHTML = `<div class="insight-head"><span class="insight-dot"></span><strong>${routeName}</strong></div><div class="insight-stats"><div><small>TRAVEL DISTANCE</small><strong>${fmt.distance(total)}</strong></div><div><small>MAX SEGMENT SLOPE</small><strong>${route.maxSlopeDeg.toFixed(1)}°</strong></div><div><small>ASCENT</small><strong>${fmt.height(route.ascentMeters)}</strong></div><div><small>TIME / ASSUMED</small><strong>${fmt.minutes(route.estimatedMinutes)}</strong></div></div>${profileSvg(route)}<p class="insight-copy">${budgetText} Computed from ${route.points.length} sampled cells in a ${source.resolutionMeters} m CTX elevation grid. ${routeMethod} The ${state.maxSlope}° limit is applied to every graph edge.</p><button id="inspectSteepest" class="outline-button">Inspect steepest segment ↗</button>`;
   $('#inspectSteepest').addEventListener('click', () => {
     const i = route.segments.reduce((best, s, index) => s.slopeDeg > route.segments[best].slopeDeg ? index : best, 0);
     const segment = route.segments[i];
@@ -300,19 +325,23 @@ function updateInsight() {
   }, { once: true });
 }
 
+let calculationRevision = 0;
 function calculate() {
   if (!state.grid) return;
+  const revision = ++calculationRevision;
   setStatus('Searching measured terrain cells…', 'loading');
   $('#calculateBtn').disabled = true;
   setTimeout(() => {
     const common = { maxSlopeDeg: state.maxSlope, speedMetersPerSecond: state.speed };
     const shortest = planRoute(state.grid, state.start, state.destination, { ...common, terrainWeight: 0 });
     const conservative = planRoute(state.grid, state.start, state.destination, { ...common, terrainWeight: 8 });
-    state.routes = { shortest, conservative };
+    const waypoint = state.waypoint ? planRouteVia(state.grid, state.start, [state.waypoint], state.destination, { ...common, terrainWeight: 0 }) : null;
+    if (revision !== calculationRevision) return;
+    state.routes = { shortest, conservative, waypoint };
     state.selectedRoute = conservative.points ? 'conservative' : 'shortest';
     updateResults();
     $('#calculateBtn').disabled = false;
-    const count = [shortest, conservative].filter((r) => r.points).length;
+    const count = [shortest, conservative, waypoint].filter((r) => r?.points).length;
     setStatus(count ? `${count} route ${count === 1 ? 'profile' : 'profiles'} computed from CTX elevations.` : shortest.error, count ? 'ready' : 'error');
   }, 20);
 }
@@ -337,14 +366,16 @@ function exportBrief() {
     `Generated: ${new Date().toISOString()}`,
     'Status: Independent research and educational prototype. Not a certified navigation or EVA tool.', '',
     '## Selected route',
-    `Profile: ${state.selectedRoute === 'shortest' ? 'Shortest available' : 'Terrain conservative'}`,
+    `Profile: ${state.selectedRoute === 'shortest' ? 'Shortest available' : state.selectedRoute === 'waypoint' ? 'Via waypoint' : 'Terrain conservative'}`,
     `Start: ${fmt.coord(state.start.lat)}°N, ${fmt.coord(state.start.lon)}°E`,
+    ...(state.waypoint ? [`Waypoint: ${fmt.coord(state.waypoint.lat)}°N, ${fmt.coord(state.waypoint.lon)}°E (user-selected map point)`] : []),
     `Destination: ${fmt.coord(state.destination.lat)}°N, ${fmt.coord(state.destination.lon)}°E`,
     `Horizontal distance: ${route.distanceMeters.toFixed(1)} m`,
     `Cumulative ascent: ${route.ascentMeters.toFixed(1)} m`,
     `Cumulative descent: ${route.descentMeters.toFixed(1)} m`,
     `Maximum sampled segment slope: ${route.maxSlopeDeg.toFixed(2)}°`,
     `Estimated one-way travel time: ${route.estimatedMinutes.toFixed(1)} min`, '',
+    `Hypothetical one-way time budget: ${state.timeBudgetMinutes} min (${route.estimatedMinutes <= state.timeBudgetMinutes ? 'within' : 'over'} budget)`, '',
     '## Model assumptions',
     `Hard slope limit: ${state.maxSlope}° per graph edge`,
     `Walking speed: ${state.speed.toFixed(2)} m/s`,
@@ -363,6 +394,7 @@ function exportBrief() {
     '## Limits and unknowns',
     '- Orbital elevation is insufficient to certify pedestrian safety or small obstacle clearance.',
     '- Travel time is a simple distance/speed scenario estimate, not an EVA schedule.',
+    '- The one-way time budget excludes stops, return travel, and EVA operations.',
     '- No live weather, suit performance, radiation, visibility, communications, or life support modelling is included.',
     '- Route endpoints selected by a user are model inputs, not verified scientific-site coordinates.',
   ];
@@ -379,11 +411,14 @@ $('#landingBtn').addEventListener('click', () => setPoint('start', LANDING));
 $('#roverBtn').addEventListener('click', () => setPoint('destination', HOGWALLOW_SOL464));
 $('#pickStart').addEventListener('click', () => { state.pick = 'start'; updatePointLabels(); });
 $('#pickDestination').addEventListener('click', () => { state.pick = 'destination'; updatePointLabels(); });
+$('#pickWaypoint').addEventListener('click', () => { state.pick = 'waypoint'; updatePointLabels(); });
+$('#clearWaypoint').addEventListener('click', () => { state.waypoint = null; state.pick = 'destination'; invalidateRoutes(); updatePointLabels(); drawOverlay(); setStatus('Waypoint cleared. Calculate to update routes.'); });
 $('#applyCoords').addEventListener('click', () => setPoint(state.pick, { lat: Number($('#latInput').value), lon: Number($('#lonInput').value) }));
 $('#slopeRange').addEventListener('input', (e) => { state.maxSlope = Number(e.target.value); $('#slopeValue').textContent = `${state.maxSlope.toFixed(1)}°`; });
 $('#slopeRange').addEventListener('change', calculate);
 $('#speedRange').addEventListener('input', (e) => { state.speed = Number(e.target.value); $('#speedValue').textContent = `${state.speed.toFixed(2)} m/s`; });
 $('#speedRange').addEventListener('change', calculate);
+$('#budgetRange').addEventListener('input', (e) => { state.timeBudgetMinutes = Number(e.target.value); $('#budgetValue').textContent = fmt.minutes(state.timeBudgetMinutes); if (state.routes.shortest) { updateResults(); } });
 $('#calculateBtn').addEventListener('click', calculate);
 $('#exportBtn').addEventListener('click', exportBrief);
 document.querySelectorAll('input[name="basemap"]').forEach((radio) => radio.addEventListener('change', (e) => { state.basemap = e.target.value; drawTiles(); }));

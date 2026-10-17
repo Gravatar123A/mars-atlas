@@ -14,14 +14,15 @@ Every raster value is a numeric elevation from the CTX DEM. The browser receives
 
 ## Routing
 
-The graph has eight possible neighbors per valid 20 m cell. An edge is forbidden when its derived slope exceeds the user-selected hard limit. A* search uses straight-line Mars distance as a lower-bound heuristic and returns no path when the destination is unreachable.
+The graph has eight possible neighbors per valid 20 m cell. An edge is forbidden when its derived slope exceeds the user-selected hard limit. A diagonal edge is also forbidden when either adjacent orthogonal cell is missing or the step into it exceeds the limit; this prevents cutting across blocked corners. A* search uses straight-line Mars distance as a lower-bound heuristic and returns no path when the destination is unreachable.
 
 - **Shortest available:** edge cost is horizontal length.
 - **Terrain conservative:** edge cost is `horizontal length × [1 + 8 × (edge slope / slope limit)²]`.
+- **Via waypoint:** two shortest valid legs are joined at one user-selected intermediate cell. Leg distances, ascent, descent, and travel times are summed. This route has no inferred science score.
 
-Both profiles obey the same hard slope limit. The conservative profile can be longer because it penalizes steeper measured edges. At the default 5° limit between the NASA-documented presets, the currently cropped DEM yields about 3.90 km with 4.9° maximum sampled slope for shortest and 4.87 km with 2.9° for terrain conservative. These are calculations for this raster and model, not validated traverses.
+All profiles obey the same hard slope limit. The conservative profile can be longer because it penalizes steeper measured edges. At the default 5° limit between the NASA-documented presets, the currently cropped DEM yields about 3.90 km with 4.9° maximum sampled slope for shortest and 4.83 km with 3.4° for terrain conservative. These are calculations for this raster and model, not validated traverses.
 
-The time estimate is `distance / assumed walking speed`; default speed is 0.75 m/s. This is explicitly a user-adjustable scenario assumption. It excludes stops, sampling, suit limits, energy, visibility, weather, communications, and return travel.
+The time estimate is `distance / assumed walking speed`; default speed is 0.75 m/s. A user-adjustable one-way time budget compares directly against that estimate. Both are scenario assumptions. They exclude stops, sampling, suit limits, energy, visibility, weather, communications, and return travel.
 
 ## Validation and uncertainty
 

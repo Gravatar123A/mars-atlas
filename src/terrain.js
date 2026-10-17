@@ -108,6 +108,13 @@ export function planRoute(grid, start, destination, options = {}) {
       if (nr < 0 || nc < 0 || nr >= grid.height || nc >= grid.width) continue;
       const neighbor = nr * grid.width + nc;
       if (visited[neighbor] || !Number.isFinite(elevation[neighbor])) continue;
+      // A diagonal cannot squeeze between missing or over-limit orthogonal edges.
+      if (dr && dc) {
+        const sides = [row * grid.width + nc, nr * grid.width + col];
+        const sideDistances = [Math.abs(eastMeters), Math.abs(northMeters)];
+        if (sides.some((side, i) => !Number.isFinite(elevation[side]) ||
+          Math.atan2(Math.abs(elevation[side] - elevation[current]), sideDistances[i]) / RAD > maxSlopeDeg)) continue;
+      }
       const horizontal = Math.hypot(dc * eastMeters, dr * northMeters);
       const deltaHeight = elevation[neighbor] - elevation[current];
       const slopeDeg = Math.atan2(Math.abs(deltaHeight), horizontal) / RAD;
@@ -149,5 +156,30 @@ export function planRoute(grid, start, destination, options = {}) {
     estimatedMinutes: distance / speedMetersPerSecond / 60,
     explored,
     model: { maxSlopeDeg, terrainWeight, speedMetersPerSecond, gridResolutionMeters: grid.resolutionMeters },
+  };
+}
+
+export function planRouteVia(grid, start, waypoints, destination, options = {}) {
+  if (!Array.isArray(waypoints) || waypoints.length === 0) return planRoute(grid, start, destination, options);
+  const stops = [start, ...waypoints, destination];
+  const legs = [];
+  for (let i = 1; i < stops.length; i++) {
+    const leg = planRoute(grid, stops[i - 1], stops[i], options);
+    if (leg.error) return { error: `Leg ${i} of ${stops.length - 1}: ${leg.error}`, failedLeg: i };
+    legs.push(leg);
+  }
+  const points = legs.flatMap((leg, i) => i ? leg.points.slice(1) : leg.points);
+  const segments = legs.flatMap((leg) => leg.segments);
+  return {
+    points, segments,
+    distanceMeters: legs.reduce((sum, leg) => sum + leg.distanceMeters, 0),
+    ascentMeters: legs.reduce((sum, leg) => sum + leg.ascentMeters, 0),
+    descentMeters: legs.reduce((sum, leg) => sum + leg.descentMeters, 0),
+    maxSlopeDeg: Math.max(...legs.map((leg) => leg.maxSlopeDeg)),
+    estimatedMinutes: legs.reduce((sum, leg) => sum + leg.estimatedMinutes, 0),
+    explored: legs.reduce((sum, leg) => sum + leg.explored, 0),
+    model: legs[0].model,
+    waypointIndices: legs.slice(0, -1).map((_, i) => legs.slice(0, i + 1).reduce((sum, leg, j) => sum + leg.points.length - (j ? 1 : 0), 0) - 1),
+    legs,
   };
 }

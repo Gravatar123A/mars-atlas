@@ -8,3 +8,10 @@
 @media(max-width:980px){.shell{height:auto;min-height:100vh;overflow:visible}.workspace{grid-template-columns:280px minmax(0,1fr);grid-template-rows:minmax(660px,auto) auto}.main-area{min-height:660px}.right-side{grid-column:1/-1;border-left:0;border-top:1px solid #2c3940}.right-side .panel-scroll{display:grid;grid-template-columns:1fr 1fr;gap:0 20px;overflow:visible}.right-side .panel-scroll>.divider{grid-column:1/-1;margin:15px 0}.right-side .panel-scroll>.section-eyebrow,.right-side .panel-scroll>h2,.right-side .panel-scroll>.side-intro,.right-side .panel-scroll>.source-tabs,.right-side .panel-scroll>#evidenceCard{grid-column:1}.right-side .panel-scroll>#routeInsight,.right-side .panel-scroll>.science-card,.right-side .panel-scroll>.trust-note{grid-column:2}.right-side .panel-scroll>.science-card,.right-side .panel-scroll>.trust-note{margin-top:10px}}
 @media(max-width:700px){.topbar{padding:0 14px}.brand{font-size:17px}.prototype-pill{display:none}.workspace{display:flex;flex-direction:column}.left-side{border-right:0;border-bottom:1px solid #2c3940}.left-side .panel-scroll{height:auto;max-height:none}.main-area{min-height:650px}.map{min-height:340px}.right-side .panel-scroll{display:block}.comparison-note{display:none}.route-cards{height:auto;min-height:154px}.route-metrics{flex-wrap:wrap}.coverage-key{display:none}}
 @media(prefers-reduced-motion:reduce){*,*::before,*::after{scroll-behavior:auto!important;transition:none!important;animation:none!important}}
+.waypoint-icon{border-color:#dcb5ef;box-shadow:0 0 0 3px #49374f}
+.route-cards.has-waypoint{height:270px;grid-template-rows:repeat(2,minmax(0,1fr))}
+.route-cards.has-waypoint .route-card.waypoint{grid-column:1/-1}
+.route-card.waypoint.active{border-color:#dcb5ef;box-shadow:inset 0 0 0 1px #dcb5ef66}
+.route-metrics{flex-wrap:wrap;row-gap:4px}
+.within-budget{color:#a3dfc4}.over-budget{color:#f0b1a2}
+@media(max-width:700px){.route-cards.has-waypoint{height:auto;grid-template-rows:none}.route-cards.has-waypoint .route-card.waypoint{min-height:120px}}
