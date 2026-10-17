@@ -18,4 +18,22 @@ The PDS label documents an equirectangular, planetocentric, east-positive Mars p
 
 The source GeoTIFF retrieved on October 17 had SHA-256 `16a1aa66c3f48c1bca252795827db7b417876217aff0f5e1aff18027fab2327b`; it was recomputed locally against the downloaded 9,662,387-byte file. The extraction script records this source hash and the packaged binary SHA-256 in `jezero-grid-meta.json`. The browser verifies the packaged binary checksum before decoding 2,413,152 finite cells. The full source elevation range is stored with a 0.02 m step and a measured maximum quantization error of 0.01 m.
 
+## Metrics and their origin
+
+The app does not present computed values as NASA measurements. The table below identifies the origin of every displayed numeric metric.
+
+| Displayed metric | Origin | External data source |
+| --- | --- | --- |
+| Latitude and longitude of landing, Sol 426, and Sol 464 presets | Published mission coordinates | The NASA records linked above. |
+| Terrain elevation | Sampled from the CTX DEM at the selected grid cell | USGS-hosted MRO/CTX GeoTIFF linked above. |
+| Horizontal distance | Haversine sum along the returned route using the PDS label's 3,396,190 m Mars radius | CTX DEM PDS3 label linked above; route geometry is calculated in the browser. |
+| Cumulative ascent and descent | Sum of positive and negative differences between consecutive sampled CTX elevations | CTX DEM; calculation described in [SCIENTIFIC_METHOD.md](SCIENTIFIC_METHOD.md). |
+| Maximum sampled slope | `atan(abs(elevation change) / horizontal edge length)` for each route edge | CTX DEM elevations plus the documented distance calculation. |
+| Route path and conservative alternative | A* graph search across valid DEM cells; conservative mode applies the documented terrain penalty | CTX DEM; algorithm and parameters are documented in [SCIENTIFIC_METHOD.md](SCIENTIFIC_METHOD.md). |
+| Elevation profile | Ordered sampled CTX elevations along the returned route | CTX DEM. |
+| Travel time and budget status | `distance / user-selected speed`; compared with the user-selected one-way budget | No external data source. These are explicitly labelled scenario assumptions. |
+| Scale bar | Map projection geometry using the same PDS label radius | CTX DEM PDS3 label. |
+
+No external weather, radiation, life-support, communications, trafficability, hazard, astronaut-performance, or live rover telemetry dataset is used. Google Fonts are loaded only for typography and do not contribute scientific data or metrics.
+
 Mars Trek capabilities and sample tiles for CTX, HiRISE, and THEMIS responded on October 17. Tile services remain external and may fail independently of the cached numeric DEM. The source file's acquisition dates, individual input stereo observations, vertical uncertainty, and redistribution terms need deeper product-level review before a scientific publication or operational use. NASA and USGS are credited as providers; this project does not imply their endorsement.
