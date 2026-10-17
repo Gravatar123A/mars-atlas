@@ -5,6 +5,13 @@ const app = $('#app');
 const LANDING = { lat: 18.44463, lon: 77.45088 };
 const HOGWALLOW_SOL464 = { lat: 18.44272865, lon: 77.38228798 };
 const HOGWALLOW_SOURCE = 'https://science.nasa.gov/wp-content/uploads/2023/04/03_Ianson_Meyer_Gramling_MEP_MSR_TAGGED.pdf';
+const SOL426_SOURCE = 'https://www.nasa.gov/wp-content/uploads/2021/09/final_msr_peis_nepa_scoping_meeting_presentations_may_4-5_2022.pdf';
+const SCENARIO_KEY = 'mars-atlas-scenarios-v1';
+const SITES = [
+  { id: 'landing', name: 'Octavia E. Butler Landing', point: LANDING, type: 'Landing site', mission: 'Mars 2020 · Perseverance', significance: 'Documented landing position and starting area for crater-floor exploration.', note: 'A historical spacecraft location, not a validated EVA origin.', source: 'https://ntrs.nasa.gov/citations/20210024644' },
+  { id: 'sol426', name: 'Perseverance at the Delta · Sol 426', point: { lat: 18.42416332, lon: 77.42524624 }, type: 'Rover position', mission: 'Mars 2020 · Perseverance', significance: 'NASA’s May 1, 2022 mission presentation places the rover at the delta during its second science campaign.', note: 'The cited point is a rover position, not an outcrop boundary or scored science target.', source: SOL426_SOURCE },
+  { id: 'hogwallow', name: 'Hogwallow Flats · Sol 464', point: HOGWALLOW_SOL464, type: 'Rover position', mission: 'Mars 2020 · Perseverance', significance: 'Documented delta-front rover location used as the default research destination.', note: 'Historical rover position; route geometry is computed independently.', source: HOGWALLOW_SOURCE },
+];
 const MAP_LAYERS = {
   ctx: { id: 'JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0', maxZoom: 13, title: 'CTX controlled mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'Context Camera', resolution: '6 m imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Orbital image brightness is not elevation or a measure of safe footing.' },
   hirise: { id: 'JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd', maxZoom: 17, title: 'HiRISE controlled mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'HiRISE', resolution: '25 cm imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Detailed imagery does not establish terrain height or current surface safety.' },
@@ -81,6 +88,7 @@ app.innerHTML = `
           <div class="model-note">Hypothetical planning threshold. It excludes stops, return travel, and EVA operations.</div>
           <button class="primary-button" id="calculateBtn"><span>Calculate route alternatives</span><span>→</span></button>
           <div id="routeStatus" class="status-line" role="status">Loading NASA terrain data…</div>
+          <details class="saved-plans"><summary>Saved mission plans</summary><div class="saved-plans-body"><label for="scenarioName">Plan name</label><input id="scenarioName" type="text" maxlength="50" placeholder="e.g. Delta traverse"><button class="outline-button" id="saveScenario">Save current plan</button><div id="savedScenarioList" class="saved-scenario-list">No plans saved in this browser.</div><small>Plans stay in this browser. Restoring a plan recalculates its routes from the checked-in terrain grid.</small></div></details>
           <div class="divider"></div>
           <div class="section-eyebrow">03 / SURFACE LAYERS</div><h2>Observe the terrain</h2>
           <div class="layer-choice"><label><input type="radio" name="basemap" value="ctx" checked><span class="swatch ctx-swatch"></span><span>CTX imagery<small>MRO · 6 m mosaic</small></span></label><button class="info-button" data-evidence="ctx" aria-label="CTX source information">i</button></div>
@@ -108,6 +116,9 @@ app.innerHTML = `
       </main>
       <aside class="side right-side">
         <div class="panel-scroll">
+          <div class="section-eyebrow">MISSION / OVERVIEW</div>
+          <div id="missionOverview" class="mission-overview"></div>
+          <div class="divider"></div>
           <div class="section-eyebrow">EVIDENCE / SOURCE INSPECTOR</div>
           <h2>Know what the map knows<span class="title-period">.</span></h2>
           <p class="side-intro">Every number in the route model begins with an identified dataset or a stated assumption.</p>
@@ -120,6 +131,11 @@ app.innerHTML = `
           <div class="divider"></div>
           <div class="section-eyebrow">SCIENCE CONTEXT</div>
           <div class="science-card"><div class="science-icon">✧</div><div><strong>Delta-front science</strong><p>NASA documents Perseverance at Hogwallow Flats on Sol 464 (June 10, 2022), near the ancient delta. Sedimentary rocks there help investigate Jezero's past lake environment. The route is a research scenario between documented coordinates, not a recreation of the rover's traverse.</p><a href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">Open NASA location record ↗</a></div></div>
+          <div class="divider"></div>
+          <div class="section-eyebrow">VERIFIED / DESTINATIONS</div>
+          <h2>Explore cited sites<span class="title-period">.</span></h2>
+          <label class="site-search-label" for="siteSearch">Search documented positions</label><input id="siteSearch" class="site-search" type="search" placeholder="Search site, mission, or type">
+          <div id="siteList" class="site-list"></div>
           <div class="trust-note"><strong>Independent research prototype</strong><p>MARS//ATLAS is not an official NASA operational tool or certified human-exploration navigation system. Orbital DEM cells cannot resolve every local hazard.</p></div>
         </div>
       </aside>
@@ -226,9 +242,17 @@ function setPoint(kind, point) {
     setStatus('That point is outside the measured CTX terrain grid.', 'error');
     return false;
   }
+  const cell = cellAt(state.grid, point);
+  if ((kind === 'start' && (cell === cellAt(state.grid, state.destination) || (state.waypoint && cell === cellAt(state.grid, state.waypoint)))) ||
+      (kind === 'destination' && (cell === cellAt(state.grid, state.start) || (state.waypoint && cell === cellAt(state.grid, state.waypoint)))) ||
+      (kind === 'waypoint' && [state.start, state.destination].some((other) => cell === cellAt(state.grid, other)))) {
+    setStatus('Choose a different terrain cell for each route stop.', 'error');
+    return false;
+  }
   state[kind] = point;
   invalidateRoutes();
   updatePointLabels();
+  renderSites();
   drawOverlay();
   setStatus(`${kind === 'start' ? 'Start' : kind === 'waypoint' ? 'Waypoint' : 'Destination'} set. Calculate to update routes.`, 'ready');
   return true;
@@ -242,14 +266,15 @@ function invalidateRoutes() {
   $('#comparisonNote').textContent = 'Points changed. Calculate routes to update the comparison.';
   $('#routeInsight').innerHTML = '<div class="empty-icon">⌁</div><strong>Awaiting a route</strong><p>Calculate alternatives for the current points.</p>';
   $('#routeTableBody').innerHTML = '<tr><td colspan="4">Calculate routes to populate this table.</td></tr>';
+  updateOverview();
 }
 
 function updatePointLabels() {
   $('#startCoords').textContent = `${fmt.coord(state.start.lat)}°N  ${fmt.coord(state.start.lon)}°E`;
   $('#destCoords').textContent = `${fmt.coord(state.destination.lat)}°N  ${fmt.coord(state.destination.lon)}°E`;
   $('#startLabel').textContent = distanceMeters(state.start, LANDING) < 15 ? 'Octavia E. Butler Landing' : 'Selected map point';
-  $('#destLabel').textContent = distanceMeters(state.destination, HOGWALLOW_SOL464) < 15 ? 'Hogwallow Flats · Sol 464' : 'Selected map point';
-  $('#waypointLabel').textContent = state.waypoint ? 'Selected map waypoint' : 'No intermediate stop';
+  $('#destLabel').textContent = SITES.find((site) => distanceMeters(state.destination, site.point) < 15)?.name || 'Selected map point';
+  $('#waypointLabel').textContent = state.waypoint ? SITES.find((site) => distanceMeters(state.waypoint, site.point) < 15)?.name || 'Selected map waypoint' : 'No intermediate stop';
   $('#waypointCoords').textContent = state.waypoint ? `${fmt.coord(state.waypoint.lat)}°N  ${fmt.coord(state.waypoint.lon)}°E` : 'Add a map point to compare a route through it';
   $('#pickStart').classList.toggle('active', state.pick === 'start');
   $('#pickDestination').classList.toggle('active', state.pick === 'destination');
@@ -258,12 +283,103 @@ function updatePointLabels() {
   const selected = state[state.pick];
   $('#latInput').value = selected?.lat.toFixed(5) ?? '';
   $('#lonInput').value = selected?.lon.toFixed(5) ?? '';
+  updateOverview();
 }
 
 function setStatus(message, type = 'ready') {
   const box = $('#routeStatus');
   box.textContent = message;
   box.dataset.type = type;
+}
+
+function updateOverview() {
+  const selected = state.routes[state.selectedRoute];
+  const routeLine = selected?.points ? `${fmt.distance(selected.distanceMeters)} · ${fmt.minutes(selected.estimatedMinutes)} one-way` : 'Calculate routes for the current plan';
+  $('#missionOverview').innerHTML = `<strong>Jezero traverse study</strong><dl><div><dt>Start</dt><dd>${fmt.coord(state.start.lat)}°N, ${fmt.coord(state.start.lon)}°E</dd></div><div><dt>Destination</dt><dd>${fmt.coord(state.destination.lat)}°N, ${fmt.coord(state.destination.lon)}°E</dd></div><div><dt>Waypoint</dt><dd>${state.waypoint ? `${fmt.coord(state.waypoint.lat)}°N, ${fmt.coord(state.waypoint.lon)}°E` : 'None'}</dd></div><div><dt>Slope limit</dt><dd>${state.maxSlope.toFixed(1)}° per cell edge</dd></div><div><dt>Time budget</dt><dd>${fmt.minutes(state.timeBudgetMinutes)} one-way</dd></div></dl><p>${routeLine}</p><small>Scenario estimate — not a certified EVA assessment.</small>`;
+}
+
+function readScenarios() {
+  try {
+    const value = JSON.parse(localStorage.getItem(SCENARIO_KEY) || '[]');
+    return Array.isArray(value) ? value.filter((item) => item && typeof item.id === 'string' && typeof item.name === 'string') : [];
+  } catch { return []; }
+}
+
+let savedScenarios = readScenarios();
+function renderScenarios() {
+  $('#savedScenarioList').innerHTML = savedScenarios.length ? savedScenarios.map((plan) => `<div class="saved-scenario"><span title="${escapeHtml(plan.name)}">${escapeHtml(plan.name)}</span><button data-load="${escapeHtml(plan.id)}" ${state.grid ? '' : 'disabled'} aria-label="Load ${escapeHtml(plan.name)}">Load</button><button data-remove="${escapeHtml(plan.id)}" aria-label="Remove ${escapeHtml(plan.name)}">×</button></div>`).join('') : 'No plans saved in this browser.';
+  $('#savedScenarioList').querySelectorAll('[data-load]').forEach((button) => button.addEventListener('click', () => restoreScenario(button.dataset.load)));
+  $('#savedScenarioList').querySelectorAll('[data-remove]').forEach((button) => button.addEventListener('click', () => {
+    savedScenarios = savedScenarios.filter((plan) => plan.id !== button.dataset.remove);
+    try { localStorage.setItem(SCENARIO_KEY, JSON.stringify(savedScenarios)); renderScenarios(); setStatus('Saved plan removed from this browser.'); }
+    catch { setStatus('Browser storage is unavailable.', 'error'); }
+  }));
+}
+
+function saveScenario() {
+  if (!state.grid) return;
+  const name = $('#scenarioName').value.trim() || `Jezero plan ${savedScenarios.length + 1}`;
+  if (savedScenarios.length >= 20) { setStatus('This browser has 20 saved plans. Remove one to save another.', 'error'); return; }
+  const plan = { id: crypto.randomUUID(), name, savedAt: new Date().toISOString(),
+    start: state.start, destination: state.destination, waypoint: state.waypoint,
+    maxSlope: state.maxSlope, speed: state.speed, timeBudgetMinutes: state.timeBudgetMinutes,
+    center: state.center, zoom: state.zoom, basemap: state.basemap, hirise: state.hirise, themis: state.themis,
+    hiriseOpacity: state.hiriseOpacity, themisOpacity: state.themisOpacity };
+  try { localStorage.setItem(SCENARIO_KEY, JSON.stringify([plan, ...savedScenarios])); savedScenarios.unshift(plan); renderScenarios(); $('#scenarioName').value = ''; setStatus(`Saved “${name}” in this browser.`); }
+  catch { setStatus('Browser storage is unavailable; this plan was not saved.', 'error'); }
+}
+
+function restoreScenario(id) {
+  const plan = savedScenarios.find((item) => item.id === id);
+  const validPoint = (point) => point && Number.isFinite(point.lat) && Number.isFinite(point.lon) && cellAt(state.grid, point) !== null && Number.isFinite(state.grid.elevationsMeters[cellAt(state.grid, point)]);
+  if (!plan || !validPoint(plan.start) || !validPoint(plan.destination) || (plan.waypoint && !validPoint(plan.waypoint)) ||
+      cellAt(state.grid, plan.start) === cellAt(state.grid, plan.destination) ||
+      (plan.waypoint && [plan.start, plan.destination].some((point) => cellAt(state.grid, point) === cellAt(state.grid, plan.waypoint))) ||
+      !(plan.maxSlope >= .1 && plan.maxSlope <= 35) || !(plan.speed >= .2 && plan.speed <= 1.5) ||
+      !(plan.timeBudgetMinutes >= 30 && plan.timeBudgetMinutes <= 480)) {
+    setStatus('Saved plan is incompatible with the current terrain grid or controls.', 'error'); return;
+  }
+  state.start = plan.start; state.destination = plan.destination; state.waypoint = plan.waypoint || null;
+  state.maxSlope = plan.maxSlope; state.speed = plan.speed; state.timeBudgetMinutes = plan.timeBudgetMinutes;
+  state.center = validPoint(plan.center) ? plan.center : { lat: 18.458, lon: 77.430 };
+  state.zoom = Number.isInteger(plan.zoom) && plan.zoom >= 7 && plan.zoom <= 16 ? plan.zoom : 11;
+  state.basemap = ['ctx', 'mola'].includes(plan.basemap) ? plan.basemap : 'ctx';
+  state.hirise = Boolean(plan.hirise); state.themis = Boolean(plan.themis);
+  state.hiriseOpacity = Number.isFinite(plan.hiriseOpacity) ? Math.min(1, Math.max(0, plan.hiriseOpacity)) : .72;
+  state.themisOpacity = Number.isFinite(plan.themisOpacity) ? Math.min(1, Math.max(0, plan.themisOpacity)) : .45;
+  $('#slopeRange').value = state.maxSlope; $('#slopeValue').textContent = `${state.maxSlope.toFixed(1)}°`;
+  $('#speedRange').value = state.speed; $('#speedValue').textContent = `${state.speed.toFixed(2)} m/s`;
+  $('#budgetRange').value = state.timeBudgetMinutes; $('#budgetValue').textContent = fmt.minutes(state.timeBudgetMinutes);
+  document.querySelector(`input[name="basemap"][value="${state.basemap}"]`).checked = true;
+  $('#hiriseToggle').checked = state.hirise; $('#themisToggle').checked = state.themis;
+  $('#hiriseOpacity').value = Math.round(state.hiriseOpacity * 100); $('#hiriseOpacityLabel').textContent = `${$('#hiriseOpacity').value}%`;
+  $('#themisOpacity').value = Math.round(state.themisOpacity * 100); $('#themisOpacityLabel').textContent = `${$('#themisOpacity').value}%`;
+  state.pick = 'destination'; updatePointLabels(); invalidateRoutes(); drawTiles(); calculate();
+  renderSites();
+  setStatus(`Restored “${plan.name}” and recalculating routes.`);
+}
+
+function renderSites() {
+  const query = $('#siteSearch').value.trim().toLowerCase();
+  const matches = SITES.filter((site) => `${site.name} ${site.type} ${site.mission}`.toLowerCase().includes(query));
+  $('#siteList').innerHTML = matches.length ? matches.map((site) => {
+    const sameStart = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.start);
+    const sameDestination = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.destination);
+    const sameWaypoint = state.grid && state.waypoint && cellAt(state.grid, site.point) === cellAt(state.grid, state.waypoint);
+    return `<article class="site-card"><div class="site-type">${escapeHtml(site.type)} · ${escapeHtml(site.mission)}</div><h3>${escapeHtml(site.name)}</h3><div class="site-coords">${fmt.coord(site.point.lat)}°N · ${fmt.coord(site.point.lon)}°E</div><p>${escapeHtml(site.significance)}</p><small>${escapeHtml(site.note)}</small><div class="site-actions"><button data-site-view="${site.id}">View map</button><button data-site-destination="${site.id}" ${!state.grid || sameStart || sameWaypoint ? 'disabled' : ''}>Destination</button><button data-site-waypoint="${site.id}" ${!state.grid || sameStart || sameDestination || sameWaypoint ? 'disabled' : ''}>Add waypoint</button></div><a href="${site.source}" target="_blank" rel="noopener">NASA source ↗</a></article>`;
+  }).join('') : '<p class="site-empty">No cited position matches this search.</p>';
+  $('#siteList').querySelectorAll('[data-site-view]').forEach((button) => button.addEventListener('click', () => {
+    const site = SITES.find((item) => item.id === button.dataset.siteView);
+    state.center = { ...site.point }; state.zoom = 13; drawTiles();
+  }));
+  $('#siteList').querySelectorAll('[data-site-destination]').forEach((button) => button.addEventListener('click', () => {
+    const site = SITES.find((item) => item.id === button.dataset.siteDestination);
+    setPoint('destination', site.point);
+  }));
+  $('#siteList').querySelectorAll('[data-site-waypoint]').forEach((button) => button.addEventListener('click', () => {
+    const site = SITES.find((item) => item.id === button.dataset.siteWaypoint);
+    setPoint('waypoint', site.point);
+  }));
 }
 
 function routeCard(key, route) {
@@ -292,6 +408,7 @@ function updateResults() {
     $('#comparisonNote').textContent = state.waypoint && waypoint?.points ? `${comparison} Waypoint route adds a required stop.` : comparison;
   } else $('#comparisonNote').textContent = 'Some profiles have no valid path under the current limit.';
   updateInsight();
+  updateOverview();
   drawOverlay();
 }
 
@@ -361,6 +478,7 @@ function evidence(key) {
 function exportBrief() {
   const route = state.routes[state.selectedRoute];
   if (!route?.points) { setStatus('Calculate and select a valid route before exporting.', 'error'); return; }
+  const waypointSite = state.waypoint && SITES.find((site) => distanceMeters(state.waypoint, site.point) < 15);
   const lines = [
     '# MARS//ATLAS — Mission research brief', '',
     `Generated: ${new Date().toISOString()}`,
@@ -368,7 +486,7 @@ function exportBrief() {
     '## Selected route',
     `Profile: ${state.selectedRoute === 'shortest' ? 'Shortest available' : state.selectedRoute === 'waypoint' ? 'Via waypoint' : 'Terrain conservative'}`,
     `Start: ${fmt.coord(state.start.lat)}°N, ${fmt.coord(state.start.lon)}°E`,
-    ...(state.waypoint ? [`Waypoint: ${fmt.coord(state.waypoint.lat)}°N, ${fmt.coord(state.waypoint.lon)}°E (user-selected map point)`] : []),
+    ...(state.waypoint ? [`Waypoint: ${fmt.coord(state.waypoint.lat)}°N, ${fmt.coord(state.waypoint.lon)}°E (${waypointSite ? waypointSite.name : 'user-selected map point'})`] : []),
     `Destination: ${fmt.coord(state.destination.lat)}°N, ${fmt.coord(state.destination.lon)}°E`,
     `Horizontal distance: ${route.distanceMeters.toFixed(1)} m`,
     `Cumulative ascent: ${route.ascentMeters.toFixed(1)} m`,
@@ -391,6 +509,7 @@ function exportBrief() {
     `Processing: ${state.grid.processing}`,
     'Basemap and optional visual layers: NASA Mars Trek WMTS — https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars',
     `Hogwallow Flats Sol 464 location: ${HOGWALLOW_SOURCE}`, '',
+    ...(waypointSite ? [`Selected waypoint source: ${waypointSite.source}`, ''] : []),
     '## Limits and unknowns',
     '- Orbital elevation is insufficient to certify pedestrian safety or small obstacle clearance.',
     '- Travel time is a simple distance/speed scenario estimate, not an EVA schedule.',
@@ -412,14 +531,16 @@ $('#roverBtn').addEventListener('click', () => setPoint('destination', HOGWALLOW
 $('#pickStart').addEventListener('click', () => { state.pick = 'start'; updatePointLabels(); });
 $('#pickDestination').addEventListener('click', () => { state.pick = 'destination'; updatePointLabels(); });
 $('#pickWaypoint').addEventListener('click', () => { state.pick = 'waypoint'; updatePointLabels(); });
-$('#clearWaypoint').addEventListener('click', () => { state.waypoint = null; state.pick = 'destination'; invalidateRoutes(); updatePointLabels(); drawOverlay(); setStatus('Waypoint cleared. Calculate to update routes.'); });
+$('#clearWaypoint').addEventListener('click', () => { state.waypoint = null; state.pick = 'destination'; invalidateRoutes(); updatePointLabels(); renderSites(); drawOverlay(); setStatus('Waypoint cleared. Calculate to update routes.'); });
 $('#applyCoords').addEventListener('click', () => setPoint(state.pick, { lat: Number($('#latInput').value), lon: Number($('#lonInput').value) }));
 $('#slopeRange').addEventListener('input', (e) => { state.maxSlope = Number(e.target.value); $('#slopeValue').textContent = `${state.maxSlope.toFixed(1)}°`; });
 $('#slopeRange').addEventListener('change', calculate);
 $('#speedRange').addEventListener('input', (e) => { state.speed = Number(e.target.value); $('#speedValue').textContent = `${state.speed.toFixed(2)} m/s`; });
 $('#speedRange').addEventListener('change', calculate);
-$('#budgetRange').addEventListener('input', (e) => { state.timeBudgetMinutes = Number(e.target.value); $('#budgetValue').textContent = fmt.minutes(state.timeBudgetMinutes); if (state.routes.shortest) { updateResults(); } });
+$('#budgetRange').addEventListener('input', (e) => { state.timeBudgetMinutes = Number(e.target.value); $('#budgetValue').textContent = fmt.minutes(state.timeBudgetMinutes); if (state.routes.shortest) updateResults(); else updateOverview(); });
 $('#calculateBtn').addEventListener('click', calculate);
+$('#saveScenario').addEventListener('click', saveScenario);
+$('#siteSearch').addEventListener('input', renderSites);
 $('#exportBtn').addEventListener('click', exportBrief);
 document.querySelectorAll('input[name="basemap"]').forEach((radio) => radio.addEventListener('change', (e) => { state.basemap = e.target.value; drawTiles(); }));
 $('#hiriseToggle').addEventListener('change', (e) => { state.hirise = e.target.checked; drawTiles(); });
@@ -476,6 +597,8 @@ map.addEventListener('keydown', (e) => {
 new ResizeObserver(drawTiles).observe(map);
 
 updatePointLabels();
+renderScenarios();
+renderSites();
 evidence('dem');
 drawTiles();
 fetch('/public/data/jezero-grid.json').then((response) => {
@@ -484,6 +607,8 @@ fetch('/public/data/jezero-grid.json').then((response) => {
 }).then((grid) => {
   if (grid.elevationsMeters.length !== grid.width * grid.height) throw new Error('Terrain grid has inconsistent dimensions');
   state.grid = grid;
+  renderScenarios();
+  renderSites();
   evidence('dem');
   setStatus(`CTX terrain ready · ${grid.width} × ${grid.height} cells at 20 m.`);
   drawTiles();

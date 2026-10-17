@@ -9,6 +9,8 @@ An independent Marswalk research prototype that turns NASA/USGS Jezero observati
 - Real A* graph search over a cropped **numeric** MRO CTX/USGS 20 m DEM. The graph refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells.
 - Shortest available and terrain-conservative profiles, plus an optional route through a user-selected waypoint. Results include computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.
 - A hypothetical one-way time budget that flags each computed route as within or over the threshold.
+- Mission overview and named plans saved in browser storage; loading a plan restores points, constraints, and map layers, then recalculates routes.
+- Searchable, source-linked collection of three documented Mars 2020 positions, including a Sol 426 delta-area rover position that can be selected as a route waypoint.
 - Source inspector, segment explanation, no-route state, and a Markdown mission brief export with actual computed values and source links.
 
 ## Run locally
@@ -52,4 +54,4 @@ The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `sc
 
 ## Development status
 
-The app is a functional local research prototype. It still needs broader usability review, a hosted deployment, and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated science-site geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.
+The app is a functional local research prototype. It still needs broader usability review, a hosted deployment, and reconciliation with the final 2026 Space Apps challenge statement when released. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.

@@ -6,6 +6,7 @@ import { cellAt, distanceMeters, planRoute, planRouteVia, pointAt } from '../src
 const grid = JSON.parse(readFileSync(new URL('../public/data/jezero-grid.json', import.meta.url)));
 const landing = { lat: 18.44463, lon: 77.45088 };
 const hogwallow = { lat: 18.44272865, lon: 77.38228798 };
+const sol426 = { lat: 18.42416332, lon: 77.42524624 };
 
 test('Mars distance uses the source radius', () => {
   const expected = grid.radiusMeters * Math.PI / 180;
@@ -13,7 +14,7 @@ test('Mars distance uses the source radius', () => {
 });
 
 test('verified points round-trip through source grid', () => {
-  for (const point of [landing, hogwallow]) {
+  for (const point of [landing, hogwallow, sol426]) {
     const index = cellAt(grid, point);
     assert.notEqual(index, null);
     assert.ok(Number.isFinite(grid.elevationsMeters[index]));
@@ -47,8 +48,8 @@ test('unknown or identical endpoints are rejected', () => {
 });
 
 test('waypoint itinerary visits the selected grid cell and sums its legs', () => {
-  const waypoint = { lat: 18.451, lon: 77.416 };
-  const route = planRouteVia(grid, landing, [waypoint], hogwallow, { maxSlopeDeg: 10 });
+  const waypoint = sol426;
+  const route = planRouteVia(grid, landing, [waypoint], hogwallow, { maxSlopeDeg: 5 });
   assert.ok(route.points?.length > 2, route.error);
   assert.equal(route.legs.length, 2);
   assert.equal(route.points.length, route.segments.length + 1);

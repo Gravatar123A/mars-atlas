@@ -11,6 +11,8 @@ Run date: 2026-10-17. Local prototype, no public deployment.
 | Waypoint itinerary | Route must pass through selected cell, join two valid legs, and expose a third card | Automated leg and metric assertions passed; browser displayed a 4.23 km route via a selected waypoint | Pass |
 | Blocked diagonal corner | Missing orthogonal cells forbid a diagonal shortcut | Synthetic 2 × 2 grid returned no route | Pass |
 | Hypothetical time budget | Route cards and insight change when threshold changes | Browser changed all three cards to “Over budget” at 60 min, with a 47 min excess for the selected route | Pass |
+| Saved plan restore | Name, constraints, and route status survive a reload | Saved a 60 min plan, reloaded, restored it, and saw recalculated over-budget routes; temporary test plan removed | Pass |
+| Cited site search and waypoint | Search a documented site and route through its point | Browser filtered to the NASA-sourced Sol 426 rover position and computed a 4.97 km route through it at the default slope setting | Pass |
 | No route | 0.1° hard limit produces no invalid geometry | Browser showed 0 routes and clear no-path messages; automated assertion passed | Pass |
 | Missing or invalid endpoint | Reject identical, out-of-area, or missing-elevation endpoints | Automated assertions passed | Pass |
 | Source layer control | Turn on an independent mission layer | Browser HiRISE checkbox changed to enabled; Mars Trek CTX/HiRISE/THEMIS capabilities and sample tiles responded during data research | Pass for checked controls; wider tile coverage not exhaustively tested |
