@@ -601,7 +601,7 @@ renderScenarios();
 renderSites();
 evidence('dem');
 drawTiles();
-fetch('/public/data/jezero-grid.json').then((response) => {
+fetch(new URL('../public/data/jezero-grid.json', import.meta.url)).then((response) => {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();
 }).then((grid) => {
