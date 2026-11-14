@@ -8,7 +8,7 @@
 | Regional A* route | Automated test computed a valid route between two points beyond the landing footprint, using 80 m cells. |
 | Existing geospatial and route checks | `npm test`: **11 passed, 0 failed**. |
 | Syntax and packaging | `node --check src/main.js`, `node --check src/route-worker.js`, `npm run build`, and `git diff --check` passed. |
-| Hosted browser check | GitHub Pages run 43547767383 passed. The public build loaded the 3D surface, default 20 m route profiles, and the 2D gradient control. A manual regional itinerary at 18.45000°N, 77.70500°E to 18.45000°N, 77.71000°E returned two 320 m routes with 80 m DEM spacing. The final map-focus refinement still needs redeployment verification. |
+| Hosted browser check | GitHub Pages run 43548012461 passed. The public build loaded the 3D surface, default 20 m route profiles, and the 2D gradient control. A manual regional itinerary at 18.45000°N, 77.70500°E to 18.45000°N, 77.71000°E returned two 320 m routes with 80 m DEM spacing. Switching to 2D on the final build focused the route and showed the gradient at a 1 km map scale. |
 
 The selected route gradient and worker interaction are visually checked but are not covered by the automated geospatial tests. The historical browser results below refer to the earlier build.
 
