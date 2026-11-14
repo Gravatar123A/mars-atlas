@@ -195,6 +195,7 @@ function fitPoints(points, fill = .78) {
   const north = Math.max(...latitudes), south = Math.min(...latitudes);
   const east = Math.max(...longitudes), west = Math.min(...longitudes);
   state.center = { lat: (north + south) / 2, lon: (east + west) / 2 };
+  $('#cursorCoords').textContent = `${fmt.coord(state.center.lat)}°N / ${fmt.coord(state.center.lon)}°E`;
   const a = world({ lat: north, lon: west }, 0);
   const b = world({ lat: south, lon: east }, 0);
   const widthRatio = map.clientWidth * fill / Math.max(1e-6, b.x - a.x);
