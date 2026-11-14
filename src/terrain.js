@@ -46,6 +46,18 @@ export function sampleElevation(grid, point) {
   };
 }
 
+// Prefer the finer landing DEM when every stop is covered; otherwise use the
+// broader sampled DEM only when it covers the entire itinerary.
+export function selectRouteGrid(local, regional, stops) {
+  const covers = (grid) => grid && stops.every((point) => {
+    const index = cellAt(grid, point);
+    return index !== null && Number.isFinite(grid.elevationsMeters[index]);
+  });
+  if (covers(local)) return local;
+  if (covers(regional)) return regional;
+  return null;
+}
+
 export function distanceMeters(a, b, radius = GRID_RADIUS_M) {
   const p1 = a.lat * RAD;
   const p2 = b.lat * RAD;

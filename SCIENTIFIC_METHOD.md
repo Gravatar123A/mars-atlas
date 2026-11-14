@@ -28,7 +28,9 @@ The time estimate is `distance / assumed walking speed`; default speed is 0.75 m
 
 The landing-area 3D surface uses the same checksum-verified CTX DEM as routing. For interactive rendering, it samples the source grid at 320 m intervals and draws triangles between those samples. The separate regional 3D surface uses the USGS/JPL Jezero science-investigation CTX DEM, which covers about 89 × 101 km. Its source is 20 m; every fourth source pixel is packaged as an 80 m context grid, and the visual mesh samples that package at about 1 km intervals. No source no-data values are filled. The regional raster uses an 18.4663° standard parallel; longitude conversion accounts for that cosine factor. Each packaged file has a verified SHA-256 before rendering.
 
-Height is intentionally displayed at **6×** its physical scale. The terrain colors are a designed elevation tint, not orbital photography or mineral data. The 3D route line uses full-resolution route coordinates and the original 20 m elevation samples. All distance, ascent, and slope calculations remain based on the landing-area 20 m grid. The regional surface provides context and does not claim additional route coverage.
+Height is intentionally displayed at **6×** its physical scale. The terrain colors are a designed elevation tint, not orbital photography or mineral data. The 3D route line uses the selected route's computed DEM coordinates and elevations. Route distance, ascent, and slope calculations use the 20 m landing grid when every stop is covered there; otherwise they use the 80 m sampled regional grid when every stop is covered there. The app does not merge grids into a mixed-resolution route. Regional route metrics are less detailed and cannot resolve hazards between samples.
+
+The optional 2D gradient colors each computed route edge by its slope as a fraction of the user's model limit: lower third, middle third, or upper third. These bands are relative visual cues, not NASA safety classes. The route engine runs in a browser worker so larger regional searches do not block map controls.
 
 ## Point inspection and two-point measurement
 

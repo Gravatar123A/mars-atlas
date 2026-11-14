@@ -1,5 +1,19 @@
 # Test report
 
+## 2026-11-14 development run
+
+| Check | Result |
+| --- | --- |
+| Regional source selection | Automated test confirms local stops use the 20 m grid, stops beyond it use finite 80 m regional samples, and uncovered stops have no route grid. |
+| Regional A* route | Automated test computed a valid route between two points beyond the landing footprint, using 80 m cells. |
+| Existing geospatial and route checks | `npm test`: **11 passed, 0 failed**. |
+| Syntax and packaging | `node --check src/main.js`, `node --check src/route-worker.js`, `npm run build`, and `git diff --check` passed. |
+| Browser preview | The in-app preview host could not connect to the local Windows server; a post-deployment visual check is still required. |
+
+The selected route gradient and worker interaction are code-reviewed but are not covered by the automated geospatial tests. The historical browser results below refer to the earlier build.
+
+## 2026-10-17 baseline
+
 Run date: 2026-10-17. Local and live GitHub Pages prototype.
 
 | Test | Expected | Observed | Status |

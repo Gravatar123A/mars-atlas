@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
-import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia, pointAt, sampleElevation } from '../src/terrain.js';
+import { cellAt, decodeTerrain, distanceMeters, planRoute, planRouteVia, pointAt, sampleElevation, selectRouteGrid } from '../src/terrain.js';
 
 const metadata = JSON.parse(readFileSync(new URL('../public/data/jezero-grid-meta.json', import.meta.url)));
 const encoded = readFileSync(new URL('../public/data/jezero-elevation-u16.bin', import.meta.url));
@@ -44,6 +44,19 @@ test('broader measured Jezero DEM is verified and includes the landing area', ()
     assert.ok(Number.isFinite(regional.elevationsMeters[index]));
     assert.ok(distanceMeters(point, pointAt(regional, index), regional.radiusMeters) < 65);
   }
+});
+
+test('route source switches to the verified regional samples beyond the landing grid', () => {
+  const regional = decodeTerrain(regionalMetadata, regionalEncoded.buffer.slice(regionalEncoded.byteOffset, regionalEncoded.byteOffset + regionalEncoded.byteLength));
+  const outsideA = { lat: 18.45, lon: 77.705 };
+  const outsideB = { lat: 18.45, lon: 77.71 };
+  assert.equal(selectRouteGrid(grid, regional, [landing, hogwallow]), grid);
+  assert.equal(cellAt(grid, outsideA), null);
+  assert.equal(selectRouteGrid(grid, regional, [outsideA, outsideB]), regional);
+  const route = planRoute(regional, outsideA, outsideB, { maxSlopeDeg: 35 });
+  assert.ok(route.points?.length > 1, route.error);
+  assert.equal(route.model.gridResolutionMeters, 80);
+  assert.equal(selectRouteGrid(grid, regional, [outsideA, { lat: 0, lon: 0 }]), null);
 });
 
 test('verified points round-trip through source grid', () => {

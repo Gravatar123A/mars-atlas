@@ -76,7 +76,7 @@ def main() -> None:
             "validCells": int(valid.sum()),
             "minimumMeters": minimum,
             "maximumMeters": maximum,
-            "processing": "Every fourth source pixel sampled without interpolation; missing source cells remain missing. Visual context only; route search uses the separate 20 m landing-area grid.",
+            "processing": "Every fourth source pixel sampled without interpolation; missing source cells remain missing. Used for exploratory 80 m regional route search when stops extend beyond the 20 m landing-area grid, and for a coarser 3D visual mesh.",
         }
         OUTPUT_META.parent.mkdir(parents=True, exist_ok=True)
         encoded.astype("<u2", copy=False).tofile(OUTPUT_VALUES)
