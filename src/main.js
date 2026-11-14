@@ -93,7 +93,7 @@ app.innerHTML = `
           <div class="slider-label"><label for="slopeRange">Maximum segment slope</label><strong id="slopeValue">5.0°</strong></div>
           <input id="slopeRange" class="range" type="range" min="0.1" max="35" step="0.1" value="5">
           <div class="range-ends"><span>STRICT 0.1°</span><span>PERMISSIVE 35°</span></div>
-          <div class="model-note">Hard limit on the slope between adjacent 20 m DEM cells. Smaller rocks and local hazards remain unknown.</div>
+          <div class="model-note">Hard limit on the slope between adjacent 20 m or 80 m DEM samples, depending on the selected footprint. Smaller hazards remain unknown.</div>
           <div class="slider-label speed-label"><label for="speedRange">Assumed walking speed</label><strong id="speedValue">0.75 m/s</strong></div>
           <input id="speedRange" class="range" type="range" min="0.2" max="1.5" step="0.05" value="0.75">
           <div class="model-note">Used for a simple one-way travel-time estimate; it does not model EVA operations.</div>
@@ -851,6 +851,7 @@ function calculate() {
     updateResults();
     $('#calculateBtn').disabled = false;
     const count = [shortest, conservative, waypoint].filter((r) => r?.points).length;
+    if (count && state.viewMode === 'map') focusRoute();
     setStatus(count ? `${count} route ${count === 1 ? 'profile' : 'profiles'} computed at ${grid.resolutionMeters} m DEM spacing.` : shortest.error, count ? 'ready' : 'error');
     worker.terminate();
     if (routeWorker === worker) routeWorker = null;
@@ -963,7 +964,11 @@ $('#themisToggle').addEventListener('change', (e) => { state.themis = e.target.c
 $('#hiriseOpacity').addEventListener('input', (e) => { state.hiriseOpacity = Number(e.target.value) / 100; $('#hiriseOpacityLabel').textContent = `${e.target.value}%`; drawTiles(); });
 $('#themisOpacity').addEventListener('input', (e) => { state.themisOpacity = Number(e.target.value) / 100; $('#themisOpacityLabel').textContent = `${e.target.value}%`; drawTiles(); });
 document.querySelectorAll('[data-evidence]').forEach((button) => button.addEventListener('click', () => evidence(button.dataset.evidence)));
-document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => setViewMode(button.dataset.view)));
+document.querySelectorAll('[data-view]').forEach((button) => button.addEventListener('click', () => {
+  const leavingTerrain = state.viewMode === 'terrain' && button.dataset.view === 'map';
+  setViewMode(button.dataset.view);
+  if (leavingTerrain && state.routes[state.selectedRoute]?.points) focusRoute();
+}));
 document.querySelectorAll('[data-map-tool]').forEach((button) => button.addEventListener('click', () => selectMapTool(button.dataset.mapTool)));
 $('#slopeToggle').addEventListener('click', () => {
   state.slopeOverlay = !state.slopeOverlay;
