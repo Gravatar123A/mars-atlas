@@ -839,7 +839,7 @@ function calculate() {
   state.routeGrid = grid;
   setStatus(`Searching ${grid.resolutionMeters} m measured terrain cells…`, 'loading');
   $('#calculateBtn').disabled = true;
-  const worker = new Worker(new URL('./route-worker.js', import.meta.url), { type: 'module' });
+  const worker = new Worker(new URL('./route-worker.js?v=11', import.meta.url), { type: 'module' });
   routeWorker = worker;
   worker.onmessage = ({ data }) => {
     if (revision !== calculationRevision) return;
