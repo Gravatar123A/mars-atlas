@@ -195,15 +195,11 @@ function fitPoints(points, fill = .78) {
   const north = Math.max(...latitudes), south = Math.min(...latitudes);
   const east = Math.max(...longitudes), west = Math.min(...longitudes);
   state.center = { lat: (north + south) / 2, lon: (east + west) / 2 };
-  state.zoom = 7;
-  for (let zoomLevel = 16; zoomLevel >= 7; zoomLevel--) {
-    const a = world({ lat: north, lon: west }, zoomLevel);
-    const b = world({ lat: south, lon: east }, zoomLevel);
-    if (b.x - a.x <= map.clientWidth * fill && b.y - a.y <= map.clientHeight * fill) {
-      state.zoom = zoomLevel;
-      break;
-    }
-  }
+  const a = world({ lat: north, lon: west }, 0);
+  const b = world({ lat: south, lon: east }, 0);
+  const widthRatio = map.clientWidth * fill / Math.max(1e-6, b.x - a.x);
+  const heightRatio = map.clientHeight * fill / Math.max(1e-6, b.y - a.y);
+  state.zoom = Math.min(16, Math.max(7, Math.log2(Math.min(widthRatio, heightRatio))));
   drawTiles();
 }
 
@@ -239,7 +235,7 @@ function drawTiles() {
   if (state.themis) visible.push({ key: 'themis', opacity: state.themisOpacity });
   for (const { key, opacity } of visible) {
     const layer = MAP_LAYERS[key];
-    const z = Math.min(state.zoom, layer.maxZoom);
+    const z = Math.min(Math.floor(state.zoom), layer.maxZoom);
     const factor = 2 ** (state.zoom - z);
     const center = world(state.center, z);
     const halfW = map.clientWidth / (2 * factor);
@@ -793,7 +789,7 @@ function updateResults() {
     const samePath = conservative.points.length === shortest.points.length && conservative.points.every((p, i) => p.lat === shortest.points[i].lat && p.lon === shortest.points[i].lon);
     const delta = conservative.distanceMeters - shortest.distanceMeters;
     const extra = delta < 1 ? `${delta.toFixed(2)} m` : fmt.distance(delta);
-    const comparison = samePath ? 'Both direct profiles chose the same path at this slope setting.' : `Conservative path adds ${extra} and lowers maximum sampled slope from ${shortest.maxSlopeDeg.toFixed(1)}° to ${conservative.maxSlopeDeg.toFixed(1)}°.`;
+    const comparison = samePath ? 'Both routes use the same path with this slope limit.' : `Gentler route adds ${extra} and lowers maximum sampled slope from ${shortest.maxSlopeDeg.toFixed(1)}° to ${conservative.maxSlopeDeg.toFixed(1)}°.`;
     $('#comparisonNote').textContent = state.waypoint && waypoint?.points ? `${comparison} Waypoint route adds a required stop.` : comparison;
   } else $('#comparisonNote').textContent = 'Some profiles have no valid path under the current limit.';
   updateInsight();
@@ -810,7 +806,7 @@ function updateGuide() {
     guide.innerHTML = '<p>No directions for this route. Adjust the points or slope limit and calculate again.</p>';
     return;
   }
-  guide.innerHTML = `<div class="guide-summary"><strong>${state.guide.steps.length} route legs</strong><span>${fmt.distance(route.distanceMeters)} total</span></div><ol class="guide-steps">${state.guide.steps.map((step) => `<li><button type="button" data-guide-index="${step.startIndex}" aria-label="Show checkpoint ${step.number} on map"><span class="guide-number">${step.number}</span><span class="guide-step"><strong>${step.instruction === 'Start' ? 'Start' : step.instruction}, head ${step.compass} · ${Math.round(step.heading)}°</strong><small>${fmt.distance(step.distanceMeters)} along mapped line to ${step.waypoint ? 'waypoint' : step.endIndex === route.points.length - 1 ? 'destination' : `checkpoint ${step.number + 1}`}</small><em>${fmt.coord(step.point.lat)}°N, ${fmt.coord(step.point.lon)}°E</em></span></button></li>`).join('')}</ol><p class="guide-limit">Planning bearings at simplified checkpoints. Follow the full route line between them; a straight line between checkpoints may cross terrain the route avoids. No live position or local hazard detection.</p>`;
+  guide.innerHTML = `<div class="guide-summary"><strong>${state.guide.steps.length} route legs</strong><span>${fmt.distance(route.distanceMeters)} total</span></div><ol class="guide-steps">${state.guide.steps.map((step) => `<li><button type="button" data-guide-index="${step.startIndex}" aria-label="Show checkpoint ${step.number} on map"><span class="guide-number">${step.number}</span><span class="guide-step"><strong>${step.instruction === 'Start' ? 'Start' : step.instruction}, head ${step.compass} · ${Math.round(step.heading)}°</strong><small>${fmt.distance(step.distanceMeters)} along mapped line to ${step.waypoint ? 'waypoint' : step.endIndex === route.points.length - 1 ? 'destination' : `checkpoint ${step.number + 1}`}</small><em>${fmt.coord(step.point.lat)}°N, ${fmt.coord(step.point.lon)}°E</em></span></button></li>`).join('')}</ol><p class="guide-limit">Planning bearings at DEM cell centers, which can differ from selected coordinates. Follow the full route line; straight lines between checkpoints may cross avoided terrain. No live position or local hazard detection.</p>`;
 }
 
 function profileSvg(route) {
