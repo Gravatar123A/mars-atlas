@@ -10,10 +10,10 @@ For Jezero and Gale, users choose a start, destination, and optional waypoint, t
 
 The benefit is a transparent way to explore how terrain data and assumptions affect a route study. It can support public learning and early research discussion; it is not an operational rover or astronaut navigation tool. We used HTML, CSS, JavaScript, a Web Worker, Python, NumPy, Rasterio, Node.js, NASA Mars Trek imagery, USGS terrain mosaics derived from NASA observations, an upstream ESA Mars Express HRSC contribution to Gale, Lucide icons, GitHub, and Vercel. No special hardware was required. The creative feature is the combination of interactive 2D/3D terrain comparison, explicit no-data boundaries, checkpoint bearings, and product-level evidence in one interface. We considered source provenance, resolution, missing cells, mixed sensor inputs, visual versus numerical data, route model assumptions, and the risk of implying field safety.
 
-Project: https://space-apps-nasa-1.vercel.app/  
-Workspace: https://space-apps-nasa-1.vercel.app/app/  
-Annotated demo and PowerPoint: https://space-apps-nasa-1.vercel.app/guide/  
-Source register: https://space-apps-nasa-1.vercel.app/resources/  
+Project: https://marsatlas-map.vercel.app/  
+Workspace: https://marsatlas-map.vercel.app/app/  
+Annotated demo and PowerPoint: https://marsatlas-map.vercel.app/guide/  
+Source register: https://marsatlas-map.vercel.app/resources/  
 Code: https://github.com/gravatar123a/mars-atlas
 
 ## Use of Super Intelligence (SI)
@@ -74,4 +74,4 @@ Select the options corresponding to **code and data** and **written text/content
 | USGS copyrights and credits | https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits |
 | ESA Planetary Science Archive | https://psa.esa.int/psa/ |
 
-The source register also explains how each item was used: https://space-apps-nasa-1.vercel.app/resources/ . Scientific metric definitions and processing limits are documented in the repository's DATA_SOURCES.md and SCIENTIFIC_METHOD.md.
+The source register also explains how each item was used: https://marsatlas-map.vercel.app/resources/ . Scientific metric definitions and processing limits are documented in the repository's DATA_SOURCES.md and SCIENTIFIC_METHOD.md.

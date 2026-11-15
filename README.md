@@ -2,10 +2,10 @@
 
 An independent Marswalk research prototype that turns planetary observations into inspectable route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
 
-**Live site:** https://space-apps-nasa-1.vercel.app/  
-**Workspace:** https://space-apps-nasa-1.vercel.app/app/  
-**Guide and PowerPoint:** https://space-apps-nasa-1.vercel.app/guide/  
-**Complete source register:** https://space-apps-nasa-1.vercel.app/resources/
+**Live site:** https://marsatlas-map.vercel.app/  
+**Workspace:** https://marsatlas-map.vercel.app/app/  
+**Guide and PowerPoint:** https://marsatlas-map.vercel.app/guide/  
+**Complete source register:** https://marsatlas-map.vercel.app/resources/
 
 ## What works
 
