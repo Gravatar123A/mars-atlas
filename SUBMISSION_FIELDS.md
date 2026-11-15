@@ -41,6 +41,7 @@ Select the options corresponding to **code and data** and **written text/content
 | Curiosity location map | https://science.nasa.gov/mission/msl-curiosity/location-map/ |
 | Spirit mission landing record | https://ntrs.nasa.gov/citations/20040191840 |
 | NASA Space Apps 2026 challenge brief | https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/ |
+| NASA images and media usage guidelines | https://www.nasa.gov/nasa-brand-center/images-and-media/ |
 
 ## Space Agency Partner & Other Data — enter one link per row
 
@@ -70,5 +71,7 @@ Select the options corresponding to **code and data** and **written text/content
 | Vercel | https://vercel.com/ |
 | OpenAI Codex | https://openai.com/codex/ |
 | OpenAI Codex presentation runtime | https://openai.com/codex/ |
+| USGS copyrights and credits | https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits |
+| ESA Planetary Science Archive | https://psa.esa.int/psa/ |
 
 The source register also explains how each item was used: https://space-apps-nasa-1.vercel.app/resources/ . Scientific metric definitions and processing limits are documented in the repository's DATA_SOURCES.md and SCIENTIFIC_METHOD.md.

@@ -16,7 +16,8 @@
     ["Mars Science Laboratory landing analysis", "https://ntrs.nasa.gov/api/citations/20130011617/downloads/20130011617.pdf", "Bradbury Landing coordinate."],
     ["Curiosity location map", "https://science.nasa.gov/mission/msl-curiosity/location-map/", "Gale mission and geology context."],
     ["Spirit mission landing record", "https://ntrs.nasa.gov/citations/20040191840", "Historical Spirit landing coordinate."],
-    ["NASA Space Apps 2026 challenge brief", "https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/", "Project brief; it is not a scientific dataset."]
+    ["NASA Space Apps 2026 challenge brief", "https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/", "Project brief; it is not a scientific dataset."],
+    ["NASA images and media usage guidelines", "https://www.nasa.gov/nasa-brand-center/images-and-media/", "Use and attribution guidance for NASA imagery; NASA insignia and identifiers are excluded from this project."]
   ],
   "other": [
     ["USGS Jezero Mars 2020 CTX route DEM GeoTIFF", "https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/JEZ_ctx_B_soc_008_DTM_MOLAtopography_DeltaGeoid_20m_Eqc_latTs0_lon0.tif", "USGS processed MRO/CTX 20 m numerical terrain source for Jezero route calculations."],
@@ -42,6 +43,8 @@
     ["GitHub", "https://github.com/gravatar123a/mars-atlas", "Public project source repository and existing site hosting."],
     ["Vercel", "https://vercel.com/", "Production hosting for the site and guide."],
     ["OpenAI Codex", "https://openai.com/codex/", "SI assisted code, interface copy, documentation, and presentation authoring; all outputs were reviewed and tested."],
-    ["OpenAI Codex presentation runtime", "https://openai.com/codex/", "Bundled artifact authoring runtime used for the PowerPoint guide; this public product page describes the assisting service."]
+    ["OpenAI Codex presentation runtime", "https://openai.com/codex/", "Bundled artifact authoring runtime used for the PowerPoint guide; this public product page describes the assisting service."],
+    ["USGS copyrights and credits", "https://www.usgs.gov/information-policies-and-instructions/copyrights-and-credits", "USGS guidance on public domain products, third-party exceptions, and credit."],
+    ["ESA Planetary Science Archive", "https://psa.esa.int/psa/", "ESA archive and data access context for Mars Express observations used upstream in the Gale composite."]
   ]
 }
