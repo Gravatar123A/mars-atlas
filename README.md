@@ -1,11 +1,13 @@
 # MARS//ATLAS
 
-An independent Marswalk research prototype that turns NASA/USGS Jezero observations into inspectable route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
+An independent Marswalk research prototype that turns planetary observations into inspectable route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
 
 **Live app:** https://gravatar123a.github.io/mars-atlas/
 
 ## What works
 
+- Region selector for Jezero, Gale, and Gusev. Jezero has landing and regional route DEMs; Gale has a 6 × 6 km landing-area route DEM; Gusev currently has cited orbital imagery and the Spirit landing position, with route and 3D controls disabled because no numeric DEM is packaged there.
+- Gale routes use measured cells sampled every 20 m from the USGS 1 m Gale merged mosaic. Bradbury Landing is a NASA-published coordinate; the nearby east study point is an explicitly labelled scenario coordinate. The merged source includes MRO HiRISE/CTX, Mars Express HRSC, and MOLA gap coverage, so source detail and uncertainty vary.
 - Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
 - Large interactive 3D elevation view with left-button drag orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. Switch between the 20 m landing-area DEM (320 m visual mesh) and a broader USGS/JPL Jezero CTX DEM (89 × 101 km; 80 m transport samples and about 1 km visual mesh). The 2D ◈ control fits the regional overview.
 - NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can select any Mars coordinate for map exploration; route calculations require the measured DEM footprint.
@@ -25,7 +27,7 @@ The browser app has no JavaScript package dependencies.
 python -m http.server 4173
 ```
 
-Open `http://localhost:4173/`. The checked-in route terrain package is `public/data/jezero-grid-meta.json` plus `public/data/jezero-elevation-u16.bin`. The regional view uses `public/data/jezero-regional-meta.json` and `public/data/jezero-regional-u16.bin`. Source GeoTIFFs are not needed for normal use. The app verifies each binary package SHA-256 before using it.
+Open `http://localhost:4173/`. The checked-in route terrain packages are the Jezero landing and regional metadata/binaries plus `public/data/gale-landing-meta.json` and `public/data/gale-landing-u16.bin`. Source GeoTIFFs are not needed for normal use. The app verifies each binary package SHA-256 before using it.
 
 ```powershell
 node --test tests/*.test.mjs
@@ -40,6 +42,8 @@ The original GeoTIFF is identified in [DATA_SOURCES.md](DATA_SOURCES.md) and `sc
 
 For the broader view, download the second GeoTIFF linked in [DATA_SOURCES.md](DATA_SOURCES.md) to `.data-cache/jezero_science_ctx_20m.tif` and run `python scripts/extract_regional_dem.py`. It preserves source no-data cells and selects every fourth source pixel without interpolation. The regional package supports exploratory route screening and visualization at 80 m sample spacing; the source projection's 18.4663° standard parallel is applied to its coordinates.
 
+For Gale, run `python scripts/extract_gale_dem.py`. The script reads byte ranges from the public USGS source GeoTIFF through verified TLS, checks the source object size and projection, selects one native mosaic pixel every 20 m without interpolation, and records the source object ETag and packaged binary SHA-256. The ETag is an object identity marker, not a whole-file SHA-256 checksum. The 1 m raster pixel size does not imply uniform 1 m upstream sensor detail.
+
 ## Project structure
 
 - `src/main.js` — mission workspace, map layers, evidence cards, interaction, and export.
@@ -49,8 +53,10 @@ For the broader view, download the second GeoTIFF linked in [DATA_SOURCES.md](DA
 - `public/data/jezero-grid-meta.json` — source metadata, geometry, processing record, and checksums.
 - `public/data/jezero-elevation-u16.bin` — numeric full-footprint elevation package.
 - `public/data/jezero-regional-meta.json` and `jezero-regional-u16.bin` — broader Jezero context terrain and checksums.
+- `public/data/gale-landing-meta.json` and `gale-landing-u16.bin` — Gale landing-area measured terrain and provenance.
 - `scripts/extract_dem.py` — reproducible source packaging.
 - `scripts/extract_regional_dem.py` — reproducible regional packaging.
+- `scripts/extract_gale_dem.py` — reproducible Gale packaging.
 - `tests/terrain.test.mjs` — geospatial and route checks.
 
 ## Documentation
@@ -64,4 +70,4 @@ For the broader view, download the second GeoTIFF linked in [DATA_SOURCES.md](DA
 
 ## Development status
 
-The app is a functional deployed research prototype. NASA/USGS product-backed terrain, imagery, and cited rover coordinates are separated from computed route outputs and user-set scenario assumptions. It does not contain every Mars dataset, live operational telemetry, or an astronaut-certifiable hazard model. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective before 3D or AI features.
+The app is a functional deployed research prototype. Published terrain, imagery, and cited rover coordinates are separated from computed route outputs and user-set scenario assumptions. It does not contain every Mars dataset, live operational telemetry, or an astronaut-certifiable hazard model. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective.

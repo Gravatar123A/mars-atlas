@@ -1,5 +1,17 @@
 # Test report
 
+## 2026-11-15 multi-region run
+
+| Check | Result |
+| --- | --- |
+| Gale source package | Extracted a 301 × 301 grid from the USGS Gale merged GeoTIFF, selecting one source pixel every 20 m; source size and ETag recorded, packaged SHA-256 checked. The full 3.87 GB source was not independently SHA-256 hashed. |
+| Gale coordinates and routing | Automated test confirms the NASA Bradbury coordinate maps within 15 m of a finite stored cell and a route to the labelled east scenario point exists under the default 5° limit. |
+| Gusev imagery endpoint | NASA Mars Trek CTX WMTS capabilities returned HTTP 200 and identified 512 px ArcGIS tiles; the corresponding tile at Spirit's landing position returned HTTP 200. Gale CTX and both regional HiRISE WMTS capabilities returned HTTP 200. |
+| Automated checks | `npm test`: **16 passed, 0 failed**. |
+| Static checks | `node --check src/main.js`, `npm run build`, and `git diff --check` passed. |
+
+No browser interaction test for the new region switch has been recorded in this run. The HTTP checks establish that the named imagery services and a sample tile responded; they do not prove complete regional image coverage.
+
 ## 2026-11-14 development run
 
 | Check | Result |

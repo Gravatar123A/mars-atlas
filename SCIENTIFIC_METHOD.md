@@ -40,6 +40,12 @@ The measurement tool uses the source Mars radius of 3,396,190 m in the haversine
 
 ## Validation and uncertainty
 
+### Gale and Gusev region handling
+
+The Gale landing-area package comes from the [USGS merged Gale DEM](https://astrogeology.usgs.gov/search/map/mars_msl_gale_merged_dem_1m). Its source GeoTIFF has 1 m pixels, but combines HiRISE and CTX observations with Mars Express HRSC and MOLA gap coverage. `scripts/extract_gale_dem.py` checks its geometry and source object identity, then selects one source mosaic pixel every 20 m in a 6 km square around Bradbury Landing. It does not interpolate between samples. The packaged elevations have a 0.05 m transport step (at most 0.025 m quantization); this is **not** a statement of source vertical accuracy. Routing uses exactly the same A* graph, slope formula, Mars radius, and browser checksum gate as Jezero. The default east destination is a user-defined study point.
+
+Gusev is a map and distance study. Mars Trek CTX, HiRISE, THEMIS, and MOLA layers are visual context, and the Spirit landing point is a NASA-published coordinate. No numerical Gusev DEM is packaged; therefore the app does not return elevation, slope, a route, or a 3D height surface there. Two-point distance uses the stated Mars sphere and is a direct great-circle distance only.
+
 Automated checks cover the Mars radius, coordinate round-trip, path constraints, changed route weights, no-route behavior, and missing/invalid endpoints. Browser checks cover the visible route response at 5° and 0.1°, layer interaction, evidence inspection, and export. See [TEST_REPORT.md](TEST_REPORT.md).
 
 Source resolution and the precision of displayed coordinates are different concepts. Five decimal places locate a selected grid cell or cited point; they do not imply terrain accuracy to that precision. The numerical DEM may contain stereo processing errors or vertical uncertainties not quantified in this prototype. A different, more detailed HiRISE DTM uses a different reference radius; it was deliberately not blended into these route calculations. See [LIMITATIONS.md](LIMITATIONS.md).
