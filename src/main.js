@@ -91,7 +91,7 @@ app.innerHTML = `
     <header class="topbar">
       <div class="brand"><span class="brand-mark">M</span><span>Mars Atlas</span><span class="brand-sub">Mars region studies</span></div>
       <div class="topbar-center"><span class="signal-dot"></span> <span id="topRegionLabel">Mars 2020 · Jezero crater</span></div>
-      <div class="topbar-actions"><span class="prototype-pill">Research prototype</span><button id="exportBtn" class="top-button">↓ <span>Export route brief</span></button></div>
+      <div class="topbar-actions"><span class="prototype-pill">Research prototype</span><button id="exportBtn" class="top-button" disabled>↓ <span>Export route brief</span></button></div>
     </header>
     <div class="workspace">
       <aside class="side left-side">
@@ -103,6 +103,7 @@ app.innerHTML = `
           <div id="setupEyebrow" class="section-eyebrow">Route setup</div>
           <h1 id="workspaceTitle">Plan a route</h1>
           <p id="workspaceIntro" class="intro">Choose a start and destination, then compare paths across measured terrain.</p>
+          <div id="routeSetupControls">
           <div class="divider"></div>
           <div class="field-heading"><span>STARTING POINT</span><button class="text-button" id="landingBtn">Use landing site ↗</button></div>
           <div class="point-input"><span class="point-icon start-icon"></span><div><strong id="startLabel">Octavia E. Butler Landing</strong><small id="startCoords"></small></div><button id="pickStart" aria-label="Choose start on map">◎</button></div>
@@ -129,6 +130,7 @@ app.innerHTML = `
           <button class="primary-button" id="calculateBtn"><span>Calculate route alternatives</span><span>→</span></button>
           <div id="routeStatus" class="status-line" role="status">Loading NASA terrain data…</div>
           <details class="saved-plans"><summary>Saved mission plans</summary><div class="saved-plans-body"><label for="scenarioName">Plan name</label><input id="scenarioName" type="text" maxlength="50" placeholder="e.g. Delta traverse"><button class="outline-button" id="saveScenario">Save current plan</button><div id="savedScenarioList" class="saved-scenario-list">No plans saved in this browser.</div><small>Plans stay in this browser. Restoring a plan recalculates its routes from the checked-in terrain grid.</small></div></details>
+          </div>
           <div class="divider"></div>
           <div class="section-eyebrow">Map layers</div><h2>Terrain views</h2>
           <div class="layer-choice"><label><input type="radio" name="basemap" value="ctx" checked><span class="swatch ctx-swatch"></span><span>CTX imagery<small id="ctxLayerDetail">MRO · 6 m mosaic</small></span></label><button class="info-button" data-evidence="ctx" aria-label="CTX source information">i</button></div>
@@ -605,8 +607,8 @@ function drawOverlay() {
     return `<path d="${path}" class="route-glow ${key}" fill="none" stroke="${color}" stroke-width="${active ? 9 : 6}" stroke-linecap="round" stroke-linejoin="round" opacity="${active ? .22 : .1}"/>${active && state.slopeOverlay ? slopePaths(route) : `<path d="${path}" class="route-line ${key} ${active ? 'active' : ''}" fill="none" stroke="${color}" stroke-width="${active ? 4 : 2.4}" stroke-linecap="round" stroke-linejoin="round" opacity="${active ? 1 : 0.72}"/>`}`;
   }).join('');
   const markers = [
-    { point: state.start, color: '#e8ad71', label: 'START' },
-    { point: state.destination, color: '#8cddcd', label: 'DESTINATION' },
+    { point: state.start, color: '#e8ad71', label: state.regionId === 'gusev' ? 'SPIRIT LANDING' : 'START' },
+    ...(state.regionId === 'gusev' ? [] : [{ point: state.destination, color: '#8cddcd', label: 'DESTINATION' }]),
     ...(state.waypoint ? [{ point: state.waypoint, color: '#dcb5ef', label: 'WAYPOINT' }] : []),
   ].map(({ point, color, label }) => { const p = screen(point); return `<g><circle cx="${p.x}" cy="${p.y}" r="12" fill="${color}" opacity=".18"/><circle cx="${p.x}" cy="${p.y}" r="5" fill="${color}" stroke="#101820" stroke-width="2"/><text x="${p.x + 13}" y="${p.y - 10}" fill="#f7f3eb" font-size="10" font-weight="700" letter-spacing="1.5" paint-order="stroke" stroke="#111a20" stroke-width="3">${label}</text></g>`; }).join('');
   const checkpoints = state.guide.steps.slice(1).map((step) => {
@@ -709,6 +711,10 @@ function setStatus(message, type = 'ready') {
 }
 
 function updateOverview() {
+  if (state.regionId === 'gusev') {
+    $('#missionOverview').innerHTML = `<strong>Gusev crater map study</strong><dl><div><dt>Documented site</dt><dd>Spirit landing</dd></div><div><dt>Coordinates</dt><dd>${fmt.lat(state.start.lat)}, ${fmt.lon(state.start.lon)}</dd></div><div><dt>Terrain data</dt><dd>No numeric route DEM</dd></div></dl><p>Explore imagery and measure direct distances.</p><small>Imagery does not establish a traversable route or current surface conditions.</small>`;
+    return;
+  }
   const selected = state.routes[state.selectedRoute];
   const routeLine = selected?.points ? `${fmt.distance(selected.distanceMeters)} · ${fmt.minutes(selected.estimatedMinutes)} one-way` : 'Calculate routes for the current plan';
   const stops = [state.start, state.destination, ...(state.waypoint ? [state.waypoint] : [])];
@@ -787,7 +793,7 @@ function renderSites() {
     const sameStart = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.start);
     const sameDestination = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.destination);
     const sameWaypoint = state.grid && state.waypoint && cellAt(state.grid, site.point) === cellAt(state.grid, state.waypoint);
-    return `<article class="site-card"><div class="site-type">${escapeHtml(site.type)} · ${escapeHtml(site.mission)}</div><h3>${escapeHtml(site.name)}</h3><div class="site-coords">${fmt.lat(site.point.lat)} · ${fmt.lon(site.point.lon)}</div><p>${escapeHtml(site.significance)}</p><small>${escapeHtml(site.note)}</small><div class="site-actions"><button data-site-view="${site.id}">View map</button><button data-site-destination="${site.id}" ${!state.grid || sameStart || sameWaypoint ? 'disabled' : ''}>Destination</button><button data-site-waypoint="${site.id}" ${!state.grid || sameStart || sameDestination || sameWaypoint ? 'disabled' : ''}>Add waypoint</button></div><a href="${site.source}" target="_blank" rel="noopener">NASA source ↗</a></article>`;
+    return `<article class="site-card"><div class="site-type">${escapeHtml(site.type)} · ${escapeHtml(site.mission)}</div><h3>${escapeHtml(site.name)}</h3><div class="site-coords">${fmt.lat(site.point.lat)} · ${fmt.lon(site.point.lon)}</div><p>${escapeHtml(site.significance)}</p><small>${escapeHtml(site.note)}</small><div class="site-actions"><button data-site-view="${site.id}">View map</button>${state.grid ? `<button data-site-destination="${site.id}" ${sameStart || sameWaypoint ? 'disabled' : ''}>Destination</button><button data-site-waypoint="${site.id}" ${sameStart || sameDestination || sameWaypoint ? 'disabled' : ''}>Add waypoint</button>` : ''}</div><a href="${site.source}" target="_blank" rel="noopener">NASA source ↗</a></article>`;
   }).join('') : '<p class="site-empty">No cited position matches this search.</p>';
   $('#siteList').querySelectorAll('[data-site-view]').forEach((button) => button.addEventListener('click', () => {
     const site = SITES.find((item) => item.id === button.dataset.siteView);
@@ -1009,6 +1015,9 @@ function zoom(change) {
 
 function switchRegion(regionId) {
   if (!REGIONS[regionId]) return;
+  const regionUrl = new URL(window.location.href);
+  regionUrl.searchParams.set('region', regionId);
+  window.history.replaceState(null, '', regionUrl);
   invalidateRoutes();
   const region = REGIONS[regionId];
   state.regionId = regionId;
@@ -1035,6 +1044,7 @@ function switchRegion(regionId) {
   $('#setupEyebrow').textContent = regionId === 'gusev' ? 'Map study' : 'Route setup';
   $('#workspaceTitle').textContent = regionId === 'gusev' ? 'Explore Gusev' : 'Plan a route';
   $('#workspaceIntro').textContent = regionId === 'gusev' ? 'Inspect the documented Spirit landing site and measure direct distances on the map.' : 'Choose a start and destination, then compare paths across measured terrain.';
+  $('#routeSetupControls').hidden = regionId === 'gusev';
   $('#resultsBar').hidden = regionId === 'gusev';
   $('#routeCards').hidden = regionId === 'gusev';
   $('#ctxLayerDetail').textContent = regionId === 'jezero' ? 'MRO · 6 m Jezero mosaic' : regionId === 'gale' ? 'MRO · Gale mosaic' : 'MRO · global uncontrolled mosaic';
@@ -1056,6 +1066,7 @@ function switchRegion(regionId) {
   document.querySelector('[data-view="terrain"]').disabled = !state.terrainMesh;
   for (const id of ['pickStart', 'pickDestination', 'pickWaypoint', 'landingBtn', 'roverBtn', 'applyCoords']) $(`#${id}`).disabled = !state.grid;
   for (const id of ['slopeRange', 'speedRange', 'budgetRange', 'saveScenario']) $(`#${id}`).disabled = !state.grid;
+  $('#exportBtn').disabled = !state.grid;
   for (const tool of ['route', 'inspect']) document.querySelector(`[data-map-tool="${tool}"]`).disabled = !state.grid;
   $('#map').classList.toggle('no-terrain', !state.grid);
   if (state.grid) setTerrainScope('local');
@@ -1225,7 +1236,9 @@ map.addEventListener('keydown', (e) => {
 });
 new ResizeObserver(drawTiles).observe(map);
 
-updatePointLabels();
+const initialRegion = new URLSearchParams(window.location.search).get('region');
+if (REGIONS[initialRegion] && initialRegion !== 'jezero') switchRegion(initialRegion);
+else updatePointLabels();
 renderScenarios();
 renderSites();
 evidence('dem');
@@ -1245,6 +1258,7 @@ fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((re
   state.jezeroGrid = grid;
   if (state.regionId !== 'jezero') return;
   state.grid = grid;
+  $('#exportBtn').disabled = false;
   for (const id of ['pickStart', 'pickDestination', 'pickWaypoint', 'landingBtn', 'roverBtn', 'applyCoords', 'slopeRange', 'speedRange', 'budgetRange', 'saveScenario']) $(`#${id}`).disabled = false;
   for (const tool of ['route', 'inspect']) document.querySelector(`[data-map-tool="${tool}"]`).disabled = false;
   $('#map').classList.remove('no-terrain');

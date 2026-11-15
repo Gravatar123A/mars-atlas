@@ -7,6 +7,7 @@ An independent Marswalk research prototype that turns planetary observations int
 ## What works
 
 - Region selector for Jezero, Gale, and Gusev. Jezero has landing and regional route DEMs; Gale has a 6 × 6 km landing-area route DEM; Gusev currently has cited orbital imagery and the Spirit landing position, with route and 3D controls disabled because no numeric DEM is packaged there.
+- Region links can be shared with `?region=jezero`, `?region=gale`, or `?region=gusev`. Gusev presents a map study with distance measurement and hides route forms that lack numerical terrain support.
 - Gale routes use measured cells sampled every 20 m from the USGS 1 m Gale merged mosaic. Bradbury Landing is a NASA-published coordinate; the nearby east study point is an explicitly labelled scenario coordinate. The merged source includes MRO HiRISE/CTX, Mars Express HRSC, and MOLA gap coverage, so source detail and uncertainty vary.
 - Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
 - Large interactive 3D elevation view with left-button drag orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. Switch between the 20 m landing-area DEM (320 m visual mesh) and a broader USGS/JPL Jezero CTX DEM (89 × 101 km; 80 m transport samples and about 1 km visual mesh). The 2D ◈ control fits the regional overview.
