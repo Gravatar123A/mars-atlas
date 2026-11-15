@@ -1,0 +1,114 @@
+:root{color:#f1f3f5;background:#0e1217}
+body{background:#0e1217}
+.shell{min-height:690px}
+.topbar{height:68px;padding:0 26px;background:#11161c;border-bottom:1px solid #303943;gap:22px}
+.brand{color:#f5f6f7;text-decoration:none;font-size:18px;letter-spacing:-.025em;gap:11px}
+.brand:hover{text-decoration:none;color:#fff}
+.brand-mark{display:grid;place-items:center;width:34px;height:34px;margin:0;border:1px solid #596b78;border-radius:8px;background:#1d2831;color:#e8f3f4;box-shadow:none}
+.brand-mark .ui-icon{width:21px;height:21px;opacity:1}
+.topbar-center{font-size:11px;letter-spacing:0;color:#aebbc4;margin-left:auto}
+.signal-dot{width:6px;height:6px;background:#72bfd0;box-shadow:none}
+.topbar-links{display:flex;align-items:center;gap:23px;margin-left:18px}
+.topbar-links a{font-size:12px;font-weight:600;color:#b8c2ca}
+.topbar-links a:hover{color:#fff;text-decoration:none}
+.topbar-actions{gap:13px}
+.prototype-pill{border:0;background:transparent;color:#83939f;font-size:11px;font-weight:500;letter-spacing:0;text-transform:none;padding:0}
+.top-button{display:inline-flex;align-items:center;gap:9px;padding:10px 13px;border:1px solid #647684;background:#202b34;border-radius:7px;color:#f4f7f8;font-size:12px;box-shadow:none}
+.top-button:hover{background:#2a3944}
+.top-button:disabled{opacity:.48}
+.workspace{grid-template-columns:316px minmax(450px,1fr) 356px}
+.side{background:#151b22}
+.left-side{border-right:1px solid #303943}
+.right-side{background:#151b22;border-left:1px solid #303943}
+.panel-scroll{padding:22px 20px 32px}
+.right-side .panel-scroll{padding:22px 20px 32px}
+.section-eyebrow{font-size:10px;letter-spacing:.09em;color:#a2b2be}
+.left-side h1{font-size:27px;line-height:1.2;margin:8px 0 9px;color:#f5f6f7}
+.left-side h2,.main-area h2{font-size:18px;color:#eff3f4}
+.right-side h2{font-size:20px;line-height:1.25;margin:7px 0 10px;color:#f3f5f6}
+.intro,.side-intro{font-size:12px;line-height:1.55;color:#acb9c3}
+.divider{background:#303b44;margin:18px 0}
+.region-select{font-size:13px;padding:12px 34px 12px 12px;border-color:#60707c;background:#202a33;color:#f5f7f7}
+.region-status{font-size:11px;color:#9fb0bd}
+.field-heading{font-size:10px;letter-spacing:.08em;color:#aebbc5}
+.text-button{display:inline-flex;align-items:center;gap:3px;color:#89c6d4;font-size:11px;font-weight:600}
+.point-input{height:62px;background:#1e2730;border-color:#3d4c57;border-radius:7px}
+.point-input strong{font-size:12px;color:#f1f4f5}
+.point-input small{font-size:10.5px;color:#a9b7bf}
+.point-input button{display:grid;place-items:center;width:30px;height:30px;border-color:#5c7280;background:#263440}
+.point-input button.active{background:#294652;border-color:#78c5d0}
+.point-source{display:inline-flex;align-items:center;gap:4px;color:#88c4d0;font-size:11px}
+.coverage-info{display:grid;gap:4px;margin-top:13px;padding:11px 12px;background:#1c2a33;border:1px solid #3b5969;border-radius:7px;color:#d7e7eb;font-size:11px;line-height:1.45}
+.coverage-info strong{font-size:11px;color:#e8f3f6}
+.coverage-info span{color:#bdd5dc}
+.coverage-info small{font-size:10px;color:#9db1bb}
+.pick-hint,.model-note{font-size:11px;line-height:1.5;color:#9faeb9}
+.slider-label{font-size:12px;color:#e0e7ea}
+.slider-label strong{color:#d6b27f}
+.range,.opacity-row input{accent-color:#78bdcb}
+.primary-button{background:#d5a46c;border:1px solid #e1ba8d;color:#17212a;border-radius:7px;font-size:12px;box-shadow:none}
+.primary-button:hover{background:#e5b984}
+.primary-button .ui-icon{filter:brightness(0);opacity:.8}
+.layer-choice,.site-card,.evidence-card,.mission-overview,.science-card,.trust-note{background:#1b242c;border-color:#3c4a55;border-radius:7px;box-shadow:none}
+.layer-choice{min-height:50px}
+.layer-choice label{font-size:12px}
+.layer-choice small{font-size:10px;color:#9cabb7}
+.info-button{display:grid;place-items:center}
+.main-area{background:#10161c}
+.map-topline{height:48px;padding:0 17px;background:#182129;border-bottom:1px solid #3d4b55}
+.map-live{font-size:12px;color:#e3e9eb}
+.view-mode{background:#111922;border-color:#44545e}
+.view-mode button{font-size:11px;padding:7px 10px;color:#b2c0c7}
+.view-mode button.active{background:#344955;color:#eef9fa}
+.map{height:calc(100vh - 144px);min-height:510px;background:#20272d}
+.map-controls{border:1px solid #53636d;border-radius:8px;background:#1b252edb;box-shadow:none}
+.map-controls button{display:grid;place-items:center;width:40px;height:40px;background:#1b252ee8;border-bottom-color:#53636d}
+.map-controls button:hover{background:#334c57}
+.map-toolbox{background:#18222ae8;border-color:#51616d;box-shadow:none}
+.map-toolbox button{display:inline-flex;align-items:center;gap:6px;padding:9px 11px;font-size:11px;color:#d0dce0}
+.map-toolbox button.active,.map-toolbox button:hover{background:#2b4854;color:#f0fbfc}
+.map-badge,.scale-box,.coverage-key,.map-attribution{background:#15202ae8;border-color:#52616c;color:#e0eaed}
+.map-badge{font-size:10px}
+.slope-legend,.terrain-legend,.map-analysis{background:#18232ceb;border-color:#536875;box-shadow:none}
+.terrain-legend{border-left:2px solid #d1ac79}
+.terrain-mode-chip,.terrain-legend #terrainColorNote{color:#d8be93}
+.terrain-legend button,.slope-legend button{background:#293d49;border-color:#6b8996;color:#e6f2f4}
+.terrain-scope button.active{background:#3a5966;border-color:#9ccdd7}
+.results-bar{background:#172028;border-color:#35444f}
+.route-count{background:#263a42;border-color:#4d7580;color:#c6e7ed}
+.route-cards{background:#111920}
+.route-card{background:#1c2730;border-color:#40535e}
+.route-card:hover{background:#24343e;border-color:#7cb5c4}
+.route-card.active,.route-card.shortest.active,.route-card.waypoint.active{background:#203a43;border-color:#83c7d1;box-shadow:inset 0 0 0 1px #83c7d155}
+.route-card-kicker,.route-metrics{color:#c4d2d8}
+.route-metrics{font-size:10px;gap:8px}
+.route-metrics span{display:inline-flex;align-items:center;gap:3px}
+.mission-overview{margin-top:8px;padding:14px}
+.mission-overview>strong{font-size:14px}
+.mission-overview dt{font-size:10px;color:#a7b5bd}
+.mission-overview dd{font-size:10px;color:#e5eced}
+.mission-overview p{color:#d8b784;font-size:12px}
+.route-guide{background:#1b242c;border-color:#3e4e59}
+.guide-summary{font-size:11px}
+.guide-summary span{color:#b5d8de}
+.guide-steps button:hover,.guide-steps button:focus-visible{background:#293d47}
+.guide-number{border-color:#81bdca;color:#d9f1f5}
+.guide-step strong{font-size:11.5px}
+.guide-step small{font-size:10.5px}
+.source-tabs{background:#10191f;border-color:#3b4b54}
+.source-tabs button{font-size:10.5px;color:#b6c4ca}
+.source-tabs button.active{background:#2c4954;color:#e7f3f5}
+.evidence-type,.site-type{color:#94c7d2}
+.evidence-card p,.science-card p,.site-card p{color:#bcc9ce;font-size:11px}
+.trust-note{background:#222923;border-color:#5b6a58}
+.trust-note strong{color:#d7c79d}
+.ui-icon{display:inline-block;flex:none;width:16px;height:16px;vertical-align:-3px;filter:brightness(0) invert(1);opacity:.82}
+.text-button .ui-icon,.point-source .ui-icon,.evidence-card a .ui-icon,.science-card a .ui-icon,.site-card a .ui-icon{width:13px;height:13px;opacity:.75}
+.info-button .ui-icon,.map-controls .ui-icon,.point-input button .ui-icon{width:18px;height:18px}
+.route-metrics .ui-icon{width:13px;height:13px}
+.route-arrow .ui-icon{width:17px;height:17px}
+.empty-icon .ui-icon{width:28px;height:28px}
+.analysis-head button .ui-icon,.saved-scenario button .ui-icon{width:14px;height:14px}
+@media(max-width:1300px){.workspace{grid-template-columns:282px minmax(390px,1fr) 320px}.topbar-center{display:none}.panel-scroll,.right-side .panel-scroll{padding:19px 16px 28px}}
+@media(max-width:1040px){.workspace{grid-template-columns:264px minmax(0,1fr);grid-template-rows:auto auto}.right-side{grid-column:1/-1}.map{height:66vh;min-height:490px}.topbar-links{margin-left:auto}}
+@media(max-width:700px){.topbar{padding:0 13px;gap:10px}.brand{font-size:16px}.topbar-links{gap:12px}.topbar-links a{font-size:11px}.prototype-pill{display:none}.top-button span{display:none}.workspace{display:flex;flex-direction:column}.left-side .panel-scroll{height:auto}.map{height:63vh;min-height:420px}.right-side .panel-scroll{display:block}.map-toolbox button{font-size:10px;padding:8px}.map-toolbox .ui-icon{display:none}}

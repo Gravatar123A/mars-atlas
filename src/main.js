@@ -3,6 +3,7 @@ import { buildRouteGuide } from './navigation.js';
 
 const $ = (selector) => document.querySelector(selector);
 const app = $('#app');
+const icon = (name) => `<img class="ui-icon" src="${new URL(`../public/icons/${name}.svg`, import.meta.url)}" alt="" aria-hidden="true">`;
 const LANDING = { lat: 18.44463, lon: 77.45088 };
 const HOGWALLOW_SOL464 = { lat: 18.44272865, lon: 77.38228798 };
 const HOGWALLOW_SOURCE = 'https://science.nasa.gov/wp-content/uploads/2023/04/03_Ianson_Meyer_Gramling_MEP_MSR_TAGGED.pdf';
@@ -28,7 +29,7 @@ const MAP_LAYERS = {
   hirise: { id: 'JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd', maxZoom: 17, title: 'HiRISE controlled mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'HiRISE', resolution: '25 cm imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Detailed imagery does not establish terrain height or current surface safety.' },
   themis: { id: 'THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018', maxZoom: 9, title: 'THEMIS daytime IR mosaic', mission: 'Mars Odyssey', instrument: 'THEMIS', resolution: '100 m mosaic', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Historical thermal infrared image, not live temperature or weather.' },
   mola: { id: 'Mars_MGS_MOLA_ClrShade_merge_global_463m', maxZoom: 7, extension: 'jpg', title: 'MOLA color hillshade', mission: 'Mars Global Surveyor', instrument: 'MOLA', resolution: '463 m visual product', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Rendered hillshade is visual context, not the numeric DEM used for routing.' },
-  galeCtx: { id: 'Gale_CTX_BlockAdj_dd', maxZoom: 13, title: 'Gale CTX mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'Context Camera', resolution: 'Orbital imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Orbital image brightness does not measure elevation.' },
+  galeCtx: { id: 'Gale_CTX_BlockAdj_dd', maxZoom: 12, title: 'Gale CTX mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'Context Camera', resolution: 'Orbital imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Orbital image brightness does not measure elevation.' },
   galeHirise: { id: 'curiosity_hirise_mosaic', maxZoom: 17, title: 'Curiosity site HiRISE mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'HiRISE', resolution: 'Orbital imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Imagery alone does not establish terrain height or current safety.' },
   globalCtx: { id: 'CTX_beta01_uncontrolled_5m_Caltech', maxZoom: 11, zoomOffset: -1, tileSize: 512, title: 'Global CTX mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'Context Camera', resolution: '5 m named mosaic', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Uncontrolled imagery; local alignment and elevation are not established by this layer.' },
   gusevHirise: { id: 'HiRISE_ColumbiaHills', maxZoom: 17, title: 'Columbia Hills HiRISE mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'HiRISE', resolution: 'Orbital imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Coverage is concentrated on Columbia Hills; imagery is not a numeric route DEM.' },
@@ -89,9 +90,10 @@ function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ 
 app.innerHTML = `
   <div class="shell">
     <header class="topbar">
-      <div class="brand"><span class="brand-mark">M</span><span>Mars Atlas</span><span class="brand-sub">Mars region studies</span></div>
+      <a class="brand" href="../"><span class="brand-mark">${icon('orbit')}</span><span>Mars Atlas</span></a>
       <div class="topbar-center"><span class="signal-dot"></span> <span id="topRegionLabel">Mars 2020 · Jezero crater</span></div>
-      <div class="topbar-actions"><span class="prototype-pill">Research prototype</span><button id="exportBtn" class="top-button" disabled>↓ <span>Export route brief</span></button></div>
+      <nav class="topbar-links" aria-label="Site"><a href="../guide/">Guide</a><a href="../resources/">Sources</a></nav>
+      <div class="topbar-actions"><span class="prototype-pill">Research prototype</span><button id="exportBtn" class="top-button" disabled>${icon('download')} <span>Export brief</span></button></div>
     </header>
     <div class="workspace">
       <aside class="side left-side">
@@ -105,13 +107,13 @@ app.innerHTML = `
           <p id="workspaceIntro" class="intro">Choose a start and destination, then compare paths across measured terrain.</p>
           <div id="routeSetupControls">
           <div class="divider"></div>
-          <div class="field-heading"><span>STARTING POINT</span><button class="text-button" id="landingBtn">Use landing site ↗</button></div>
-          <div class="point-input"><span class="point-icon start-icon"></span><div><strong id="startLabel">Octavia E. Butler Landing</strong><small id="startCoords"></small></div><button id="pickStart" aria-label="Choose start on map">◎</button></div>
-          <div class="field-heading destination-heading"><span>DESTINATION</span><button class="text-button" id="roverBtn">Use preset ↗</button></div>
-          <div class="point-input"><span class="point-icon dest-icon"></span><div><strong id="destLabel">Hogwallow Flats · Sol 464</strong><small id="destCoords"></small></div><button id="pickDestination" aria-label="Choose destination on map">◎</button></div>
-          <a class="point-source" id="destinationSource" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA record for this rover location ↗</a>
+          <div class="field-heading"><span>STARTING POINT</span><button class="text-button" id="landingBtn">Use landing site ${icon('arrow-up-right')}</button></div>
+          <div class="point-input"><span class="point-icon start-icon"></span><div><strong id="startLabel">Octavia E. Butler Landing</strong><small id="startCoords"></small></div><button id="pickStart" aria-label="Choose start on map">${icon('crosshair')}</button></div>
+          <div class="field-heading destination-heading"><span>DESTINATION</span><button class="text-button" id="roverBtn">Use preset ${icon('arrow-up-right')}</button></div>
+          <div class="point-input"><span class="point-icon dest-icon"></span><div><strong id="destLabel">Hogwallow Flats · Sol 464</strong><small id="destCoords"></small></div><button id="pickDestination" aria-label="Choose destination on map">${icon('crosshair')}</button></div>
+          <a class="point-source" id="destinationSource" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA record for this rover location ${icon('external-link')}</a>
           <div class="field-heading destination-heading"><span>OPTIONAL WAYPOINT</span><button class="text-button" id="clearWaypoint">Clear stop</button></div>
-          <div class="point-input"><span class="point-icon waypoint-icon"></span><div><strong id="waypointLabel">No intermediate stop</strong><small id="waypointCoords">Add a map point to compare a route through it</small></div><button id="pickWaypoint" aria-label="Choose waypoint on map">◎</button></div>
+          <div class="point-input"><span class="point-icon waypoint-icon"></span><div><strong id="waypointLabel">No intermediate stop</strong><small id="waypointCoords">Add a map point to compare a route through it</small></div><button id="pickWaypoint" aria-label="Choose waypoint on map">${icon('crosshair')}</button></div>
           <div class="pick-hint" id="pickHint">Click the map to choose a destination. Routes require measured terrain coverage.</div>
           <div id="coverageInfo" class="coverage-info">Loading measured terrain footprint…</div>
           <details class="coordinate-details"><summary>Enter precise coordinates</summary><div class="coordinate-form"><label>Latitude (+N, −S)<input id="latInput" type="number" step="0.00001" min="-90" max="90"></label><label>Longitude (+E, −W)<input id="lonInput" type="number" step="0.00001" min="-180" max="180"></label><button id="applyCoords" class="outline-button">Set selected point</button></div></details>
@@ -127,17 +129,17 @@ app.innerHTML = `
           <div class="slider-label speed-label"><label for="budgetRange">One-way time budget</label><strong id="budgetValue">2 h 0 m</strong></div>
           <input id="budgetRange" class="range" type="range" min="30" max="480" step="15" value="120">
           <div class="model-note">Hypothetical planning threshold. It excludes stops, return travel, and EVA operations.</div>
-          <button class="primary-button" id="calculateBtn"><span>Calculate route alternatives</span><span>→</span></button>
+          <button class="primary-button" id="calculateBtn"><span>Calculate routes</span>${icon('arrow-right')}</button>
           <div id="routeStatus" class="status-line" role="status">Loading NASA terrain data…</div>
           <details class="saved-plans"><summary>Saved mission plans</summary><div class="saved-plans-body"><label for="scenarioName">Plan name</label><input id="scenarioName" type="text" maxlength="50" placeholder="e.g. Delta traverse"><button class="outline-button" id="saveScenario">Save current plan</button><div id="savedScenarioList" class="saved-scenario-list">No plans saved in this browser.</div><small>Plans stay in this browser. Restoring a plan recalculates its routes from the checked-in terrain grid.</small></div></details>
           </div>
           <div class="divider"></div>
           <div class="section-eyebrow">Map layers</div><h2>Terrain views</h2>
-          <div class="layer-choice"><label><input type="radio" name="basemap" value="ctx" checked><span class="swatch ctx-swatch"></span><span>CTX imagery<small id="ctxLayerDetail">MRO · 6 m mosaic</small></span></label><button class="info-button" data-evidence="ctx" aria-label="CTX source information">i</button></div>
-          <div class="layer-choice"><label><input type="radio" name="basemap" value="mola"><span class="swatch mola-swatch"></span><span>MOLA hillshade<small>MGS · regional context</small></span></label><button class="info-button" data-evidence="mola" aria-label="MOLA source information">i</button></div>
-          <div class="layer-choice"><label><input id="hiriseToggle" type="checkbox"><span class="swatch hirise-swatch"></span><span>HiRISE detail<small id="hiriseLayerDetail">MRO · 25 cm mosaic</small></span></label><button class="info-button" data-evidence="hirise" aria-label="HiRISE source information">i</button></div>
+          <div class="layer-choice"><label><input type="radio" name="basemap" value="ctx" checked><span class="swatch ctx-swatch"></span><span>CTX imagery<small id="ctxLayerDetail">MRO · 6 m mosaic</small></span></label><button class="info-button" data-evidence="ctx" aria-label="CTX source information">${icon('info')}</button></div>
+          <div class="layer-choice"><label><input type="radio" name="basemap" value="mola"><span class="swatch mola-swatch"></span><span>MOLA hillshade<small>MGS · regional context</small></span></label><button class="info-button" data-evidence="mola" aria-label="MOLA source information">${icon('info')}</button></div>
+          <div class="layer-choice"><label><input id="hiriseToggle" type="checkbox"><span class="swatch hirise-swatch"></span><span>HiRISE detail<small id="hiriseLayerDetail">MRO · 25 cm mosaic</small></span></label><button class="info-button" data-evidence="hirise" aria-label="HiRISE source information">${icon('info')}</button></div>
           <div class="opacity-row"><span>HiRISE opacity</span><input id="hiriseOpacity" type="range" min="0" max="100" value="72"><span id="hiriseOpacityLabel">72%</span></div>
-          <div class="layer-choice"><label><input id="themisToggle" type="checkbox"><span class="swatch themis-swatch"></span><span>THEMIS daytime IR<small>Mars Odyssey · historical</small></span></label><button class="info-button" data-evidence="themis" aria-label="THEMIS source information">i</button></div>
+          <div class="layer-choice"><label><input id="themisToggle" type="checkbox"><span class="swatch themis-swatch"></span><span>THEMIS daytime IR<small>Mars Odyssey · historical</small></span></label><button class="info-button" data-evidence="themis" aria-label="THEMIS source information">${icon('info')}</button></div>
           <div class="opacity-row"><span>THEMIS opacity</span><input id="themisOpacity" type="range" min="0" max="100" value="45"><span id="themisOpacityLabel">45%</span></div>
         </div>
       </aside>
@@ -148,14 +150,14 @@ app.innerHTML = `
           <canvas id="terrain3d" class="terrain-canvas" role="img" aria-label="Three dimensional rendering of the selected measured terrain grid" hidden></canvas>
           <svg id="routeOverlay" class="route-overlay" aria-hidden="true"></svg>
           <div class="map-vignette"></div>
-          <div class="map-controls"><button id="zoomIn" aria-label="Zoom in">+</button><button id="zoomOut" aria-label="Zoom out">−</button><button id="resetMap" aria-label="Fit route terrain">⌖</button><button id="fitRegion" aria-label="Explore wider Jezero region in 2D" title="Explore wider Jezero region in 2D" disabled>◈</button><button id="focusRoute" aria-label="Focus route endpoints">↗</button><button id="fullscreenMap" aria-label="Toggle full screen map">⛶</button></div>
+          <div class="map-controls"><button id="zoomIn" aria-label="Zoom in" title="Zoom in">${icon('plus')}</button><button id="zoomOut" aria-label="Zoom out" title="Zoom out">${icon('minus')}</button><button id="resetMap" aria-label="Fit measured terrain" title="Fit measured terrain">${icon('focus')}</button><button id="fitRegion" aria-label="Explore wider Jezero region in 2D" title="Explore wider Jezero region in 2D" disabled>${icon('map')}</button><button id="focusRoute" aria-label="Focus route endpoints" title="Focus route endpoints">${icon('scan')}</button><button id="fullscreenMap" aria-label="Toggle full screen map" title="Full screen">${icon('maximize')}</button></div>
           <div class="map-badge">Mars · <span id="mapBadgeRegion">Jezero crater</span> <span>·</span> planetocentric coordinates</div>
-          <div id="mapToolbox" class="map-toolbox" role="group" aria-label="2D map tools"><button data-map-tool="route" class="active" aria-pressed="true">Choose route point</button><button data-map-tool="inspect" aria-pressed="false">Inspect elevation</button><button data-map-tool="measure" aria-pressed="false">Measure distance</button></div>
+          <div id="mapToolbox" class="map-toolbox" role="group" aria-label="2D map tools"><button data-map-tool="route" class="active" aria-pressed="true">${icon('route')} Choose point</button><button data-map-tool="inspect" aria-pressed="false">${icon('mountain')} Inspect height</button><button data-map-tool="measure" aria-pressed="false">${icon('ruler')} Measure</button></div>
           <div id="slopeLegend" class="slope-legend" hidden><button id="slopeToggle" aria-pressed="true">Show route slope</button><span><i class="slope-low"></i>low</span><span><i class="slope-mid"></i>middle</span><span><i class="slope-high"></i>near limit</span><small>Relative to your slope limit; not a safety rating.</small></div>
           <div id="mapAnalysis" class="map-analysis" role="status" hidden></div>
           <div class="scale-box"><div id="scaleLine"></div><span id="scaleText">—</span></div>
           <div class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">20 M ROUTE DEM</span> <span id="regionalKeyGroup"><span class="coverage-fill"></span> <span id="regionalKeyText">80 M REGIONAL DEM</span></span></div>
-          <div id="terrain3dLegend" class="terrain-legend" hidden><div><span id="terrainModeChip" class="terrain-mode-chip">3D / CTX DEM</span><strong id="terrainScopeTitle">Measured terrain</strong><small id="terrainMeshNote">Left drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small><div class="terrain-scope" role="group" aria-label="3D terrain area"><button data-scope="local" class="active" aria-pressed="true">Landing area</button><button data-scope="regional" aria-pressed="false" disabled>Jezero region</button></div><a id="terrainSourceLink" href="https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/index.html" target="_blank" rel="noopener">USGS terrain source ↗</a></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
+          <div id="terrain3dLegend" class="terrain-legend" hidden><div><span id="terrainModeChip" class="terrain-mode-chip">3D / CTX DEM</span><strong id="terrainScopeTitle">Measured terrain</strong><small id="terrainMeshNote">Left drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small><div class="terrain-scope" role="group" aria-label="3D terrain area"><button data-scope="local" class="active" aria-pressed="true">Landing area</button><button data-scope="regional" aria-pressed="false" disabled>Jezero region</button></div><a id="terrainSourceLink" href="https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/index.html" target="_blank" rel="noopener">USGS terrain source ${icon('external-link')}</a></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
           <div id="mapAttribution" class="map-attribution">Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS</div>
         </div>
         <div id="resultsBar" class="results-bar"><div class="results-title"><span class="section-eyebrow">Route comparison</span><h2>Choose a route <span id="routeCount" class="route-count">0 routes</span></h2></div><div id="comparisonNote" class="comparison-note">Calculate routes to compare distance and slope.</div></div>
@@ -178,11 +180,11 @@ app.innerHTML = `
           <div id="evidenceCard"></div>
           <div class="divider"></div>
           <div class="section-eyebrow">Selected route analysis</div>
-          <div id="routeInsight" class="route-insight"><div class="empty-icon">⌁</div><strong>Awaiting a route</strong><p>Calculate alternatives to inspect measured elevation and modelled slope.</p></div>
+          <div id="routeInsight" class="route-insight"><div class="empty-icon">${icon('route')}</div><strong>Awaiting a route</strong><p>Calculate alternatives to inspect measured elevation and modelled slope.</p></div>
           <details class="route-table-details"><summary>Route metrics table</summary><table><caption>Computed route comparison</caption><thead><tr><th scope="col">Profile</th><th scope="col">Distance</th><th scope="col">Max slope</th><th scope="col">Ascent</th></tr></thead><tbody id="routeTableBody"><tr><td colspan="4">Calculate routes to populate this table.</td></tr></tbody></table></details>
           <div class="divider"></div>
           <div class="section-eyebrow">Science context</div>
-          <div class="science-card"><div><strong id="scienceTitle">Delta-front geology</strong><p id="scienceCopy">NASA documents Perseverance near Jezero's ancient delta.</p><a id="scienceSource" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA mission record ↗</a></div></div>
+          <div class="science-card"><div><strong id="scienceTitle">Delta-front geology</strong><p id="scienceCopy">NASA documents Perseverance near Jezero's ancient delta.</p><a id="scienceSource" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA mission record ${icon('external-link')}</a></div></div>
           <div class="divider"></div>
           <div class="section-eyebrow">Documented locations</div>
           <h2>Browse cited positions</h2>
@@ -488,7 +490,7 @@ function updateCoverageInfo() {
   const widthKm = local.width * local.resolutionMeters / 1000;
   const heightKm = local.height * local.resolutionMeters / 1000;
   const regional = state.regionalGrid;
-  $('#coverageInfo').innerHTML = `${state.regionId === 'gale' ? 'Gale landing-area merged DEM' : 'Jezero landing-area CTX DEM'}: ${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${local.validCells.toLocaleString()} measured samples at ${local.resolutionMeters} m spacing. ${state.viewMode === 'terrain' ? 'Switch to 2D to select points.' : 'Use ⌖ to fit this footprint or ↗ to focus your route.'}${regional ? `<br>Broader Jezero CTX DEM: ${(regional.width * regional.resolutionMeters / 1000).toFixed(1)} × ${(regional.height * regional.resolutionMeters / 1000).toFixed(1)} km. Routes beyond the landing area use every fourth source pixel (80 m spacing), so smaller hazards are unresolved. Use ◈ for the wider overview.` : ''}${state.regionId === 'gale' ? '<br>The merged Gale source combines HiRISE, CTX, HRSC, and MOLA gap coverage. Underlying quality varies by source area; this is route screening, not field navigation.' : ''}`;
+  $('#coverageInfo').innerHTML = `<strong>${state.regionId === 'gale' ? 'Gale merged elevation' : 'Jezero CTX elevation'}</strong><span>${widthKm.toFixed(1)} × ${heightKm.toFixed(1)} km · ${local.resolutionMeters} m samples${regional ? ` · ${(regional.width * regional.resolutionMeters / 1000).toFixed(0)} × ${(regional.height * regional.resolutionMeters / 1000).toFixed(0)} km regional grid at 80 m` : ''}</span><small>Route screening only. Hazards smaller than the sampled cells are unknown.</small>`;
 }
 
 function updateMapHint() {
@@ -537,7 +539,7 @@ function preferredElevation(point) {
 
 function elevationDetails(sample) {
   if (!sample) return '<strong>Elevation unknown</strong><p>No verified numerical DEM sample is available at this location. Imagery color is not converted to height.</p>';
-  return `<strong>${Math.round(sample.elevationMeters).toLocaleString()} m</strong><p>${sample.level} · ${sample.resolutionMeters} m sampled grid from a ${sample.sourceResolutionMeters} m ${sample.sourceId === 'MSL_Gale_DEM_Mosaic_1m_v3' ? 'merged mosaic whose upstream sensor detail varies' : 'source'}. Nearest stored cell center is ${Math.round(sample.offsetMeters)} m from the selected coordinate. Absolute vertical uncertainty is not validated here.</p><a href="${sample.productPage}" target="_blank" rel="noopener">Open USGS terrain source ↗</a>`;
+  return `<strong>${Math.round(sample.elevationMeters).toLocaleString()} m</strong><p>${sample.level} · ${sample.resolutionMeters} m sampled grid from a ${sample.sourceResolutionMeters} m ${sample.sourceId === 'MSL_Gale_DEM_Mosaic_1m_v3' ? 'merged mosaic whose upstream sensor detail varies' : 'source'}. Nearest stored cell center is ${Math.round(sample.offsetMeters)} m from the selected coordinate. Absolute vertical uncertainty is not validated here.</p><a href="${sample.productPage}" target="_blank" rel="noopener">Open USGS terrain source ${icon('external-link')}</a>`;
 }
 
 function renderMapAnalysis() {
@@ -545,13 +547,13 @@ function renderMapAnalysis() {
   card.hidden = state.viewMode === 'terrain' || state.mapTool === 'route';
   if (state.mapTool === 'inspect') {
     const selected = state.inspection;
-    card.innerHTML = `<div class="analysis-head"><span>LOCATION / ELEVATION</span><button data-analysis-clear aria-label="Clear inspected location">×</button></div>${selected ? `<p class="analysis-coords">${fmt.lat(selected.point.lat)} · ${fmt.lon(selected.point.lon)}</p>${elevationDetails(selected.sample)}` : '<p>Click the 2D map, or press Enter with the map focused, to inspect a location.</p>'}`;
+    card.innerHTML = `<div class="analysis-head"><span>LOCATION / ELEVATION</span><button data-analysis-clear aria-label="Clear inspected location">${icon('x')}</button></div>${selected ? `<p class="analysis-coords">${fmt.lat(selected.point.lat)} · ${fmt.lon(selected.point.lon)}</p>${elevationDetails(selected.sample)}` : '<p>Click the 2D map, or press Enter with the map focused, to inspect a location.</p>'}`;
   } else {
     const [first, second] = state.measurePoints;
     const distance = second ? distanceMeters(first.point, second.point, state.grid?.radiusMeters || 3396190) : null;
     const comparable = first?.sample && second?.sample && first.sample.sourceId === second.sample.sourceId;
     const delta = comparable ? second.sample.elevationMeters - first.sample.elevationMeters : null;
-    card.innerHTML = `<div class="analysis-head"><span>TWO-POINT MEASUREMENT</span><button data-analysis-clear aria-label="Clear measurement">×</button></div>${!first ? '<p>Choose the first point on the 2D map, then choose the second.</p>' : !second ? `<p>First point: ${fmt.lat(first.point.lat)} · ${fmt.lon(first.point.lon)}. Choose the second point.</p>${elevationDetails(first.sample)}` : `<strong>${fmt.distance(distance)} horizontal distance</strong><p>Great-circle distance on a 3,396,190 m Mars sphere; this is not a walkable route.</p><p>Endpoint elevation change: ${delta === null ? 'unknown — both points need elevation from the same DEM product' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} m`}. No terrain between these points is assessed.</p><small>A: ${fmt.lat(first.point.lat)}, ${fmt.lon(first.point.lon)} · B: ${fmt.lat(second.point.lat)}, ${fmt.lon(second.point.lon)}</small>`}`;
+    card.innerHTML = `<div class="analysis-head"><span>TWO-POINT MEASUREMENT</span><button data-analysis-clear aria-label="Clear measurement">${icon('x')}</button></div>${!first ? '<p>Choose the first point on the 2D map, then choose the second.</p>' : !second ? `<p>First point: ${fmt.lat(first.point.lat)} · ${fmt.lon(first.point.lon)}. Choose the second point.</p>${elevationDetails(first.sample)}` : `<strong>${fmt.distance(distance)} horizontal distance</strong><p>Great-circle distance on a 3,396,190 m Mars sphere; this is not a walkable route.</p><p>Endpoint elevation change: ${delta === null ? 'unknown — both points need elevation from the same DEM product' : `${delta >= 0 ? '+' : ''}${delta.toFixed(1)} m`}. No terrain between these points is assessed.</p><small>A: ${fmt.lat(first.point.lat)}, ${fmt.lon(first.point.lon)} · B: ${fmt.lat(second.point.lat)}, ${fmt.lon(second.point.lon)}</small>`}`;
   }
 }
 
@@ -680,7 +682,7 @@ function invalidateRoutes() {
   $('#routeCards').innerHTML = '';
   $('#routeCount').textContent = '0 routes';
   $('#comparisonNote').textContent = 'Points changed. Calculate routes to update the comparison.';
-  $('#routeInsight').innerHTML = '<div class="empty-icon">⌁</div><strong>Awaiting a route</strong><p>Calculate alternatives for the current points.</p>';
+  $('#routeInsight').innerHTML = `<div class="empty-icon">${icon('route')}</div><strong>Awaiting a route</strong><p>Calculate alternatives for the current points.</p>`;
   $('#routeGuide').innerHTML = '<p>Calculate a route to see bearings and turns.</p>';
   $('#routeTableBody').innerHTML = '<tr><td colspan="4">Calculate routes to populate this table.</td></tr>';
   updateOverview();
@@ -731,7 +733,7 @@ function readScenarios() {
 
 let savedScenarios = readScenarios();
 function renderScenarios() {
-  $('#savedScenarioList').innerHTML = savedScenarios.length ? savedScenarios.map((plan) => `<div class="saved-scenario"><span title="${escapeHtml(plan.name)}">${escapeHtml(plan.name)} · ${REGIONS[plan.regionId || 'jezero']?.name || 'Unknown region'}</span><button data-load="${escapeHtml(plan.id)}" ${((plan.regionId || 'jezero') === 'jezero' ? state.jezeroGrid : plan.regionId === 'gale' ? state.galeGrid : null) ? '' : 'disabled'} aria-label="Load ${escapeHtml(plan.name)}">Load</button><button data-remove="${escapeHtml(plan.id)}" aria-label="Remove ${escapeHtml(plan.name)}">×</button></div>`).join('') : 'No plans saved in this browser.';
+  $('#savedScenarioList').innerHTML = savedScenarios.length ? savedScenarios.map((plan) => `<div class="saved-scenario"><span title="${escapeHtml(plan.name)}">${escapeHtml(plan.name)} · ${REGIONS[plan.regionId || 'jezero']?.name || 'Unknown region'}</span><button data-load="${escapeHtml(plan.id)}" ${((plan.regionId || 'jezero') === 'jezero' ? state.jezeroGrid : plan.regionId === 'gale' ? state.galeGrid : null) ? '' : 'disabled'} aria-label="Load ${escapeHtml(plan.name)}">Load</button><button data-remove="${escapeHtml(plan.id)}" aria-label="Remove ${escapeHtml(plan.name)}">${icon('x')}</button></div>`).join('') : 'No plans saved in this browser.';
   $('#savedScenarioList').querySelectorAll('[data-load]').forEach((button) => button.addEventListener('click', () => restoreScenario(button.dataset.load)));
   $('#savedScenarioList').querySelectorAll('[data-remove]').forEach((button) => button.addEventListener('click', () => {
     savedScenarios = savedScenarios.filter((plan) => plan.id !== button.dataset.remove);
@@ -793,7 +795,7 @@ function renderSites() {
     const sameStart = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.start);
     const sameDestination = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.destination);
     const sameWaypoint = state.grid && state.waypoint && cellAt(state.grid, site.point) === cellAt(state.grid, state.waypoint);
-    return `<article class="site-card"><div class="site-type">${escapeHtml(site.type)} · ${escapeHtml(site.mission)}</div><h3>${escapeHtml(site.name)}</h3><div class="site-coords">${fmt.lat(site.point.lat)} · ${fmt.lon(site.point.lon)}</div><p>${escapeHtml(site.significance)}</p><small>${escapeHtml(site.note)}</small><div class="site-actions"><button data-site-view="${site.id}">View map</button>${state.grid ? `<button data-site-destination="${site.id}" ${sameStart || sameWaypoint ? 'disabled' : ''}>Destination</button><button data-site-waypoint="${site.id}" ${sameStart || sameDestination || sameWaypoint ? 'disabled' : ''}>Add waypoint</button>` : ''}</div><a href="${site.source}" target="_blank" rel="noopener">NASA source ↗</a></article>`;
+    return `<article class="site-card"><div class="site-type">${escapeHtml(site.type)} · ${escapeHtml(site.mission)}</div><h3>${escapeHtml(site.name)}</h3><div class="site-coords">${fmt.lat(site.point.lat)} · ${fmt.lon(site.point.lon)}</div><p>${escapeHtml(site.significance)}</p><small>${escapeHtml(site.note)}</small><div class="site-actions"><button data-site-view="${site.id}">View map</button>${state.grid ? `<button data-site-destination="${site.id}" ${sameStart || sameWaypoint ? 'disabled' : ''}>Destination</button><button data-site-waypoint="${site.id}" ${sameStart || sameDestination || sameWaypoint ? 'disabled' : ''}>Add waypoint</button>` : ''}</div><a href="${site.source}" target="_blank" rel="noopener">NASA source ${icon('external-link')}</a></article>`;
   }).join('') : '<p class="site-empty">No cited position matches this search.</p>';
   $('#siteList').querySelectorAll('[data-site-view]').forEach((button) => button.addEventListener('click', () => {
     const site = SITES.find((item) => item.id === button.dataset.siteView);
@@ -815,7 +817,7 @@ function routeCard(key, route) {
   const description = key === 'shortest' ? 'Shortest path within your slope limit' : key === 'waypoint' ? 'Shortest path through your selected stop' : 'Gives steeper terrain a higher cost';
   if (route.error) return `<button class="route-card unavailable" disabled><span class="route-card-kicker">${title}</span><strong>No valid route</strong><small>${escapeHtml(route.error)}</small></button>`;
   const budget = route.estimatedMinutes <= state.timeBudgetMinutes ? 'Within budget' : 'Over budget';
-  return `<button class="route-card ${active ? 'active' : ''} ${key}" data-route="${key}" aria-pressed="${active}"><span class="route-card-top"><span class="route-card-kicker">${title}</span><span class="route-arrow">↗</span></span><strong>${fmt.distance(route.distanceMeters)}</strong><small>${description}</small><span class="route-metrics"><span>↗ ${fmt.height(route.ascentMeters)} ascent</span><span>⌁ ${route.maxSlopeDeg.toFixed(1)}° max</span><span>◷ ${fmt.minutes(route.estimatedMinutes)}</span><span class="${budget === 'Over budget' ? 'over-budget' : 'within-budget'}">${budget}</span></span></button>`;
+  return `<button class="route-card ${active ? 'active' : ''} ${key}" data-route="${key}" aria-pressed="${active}"><span class="route-card-top"><span class="route-card-kicker">${title}</span><span class="route-arrow">${icon('arrow-up-right')}</span></span><strong>${fmt.distance(route.distanceMeters)}</strong><small>${description}</small><span class="route-metrics"><span>${icon('trending-up')} ${fmt.height(route.ascentMeters)} ascent</span><span>${icon('mountain')} ${route.maxSlopeDeg.toFixed(1)}° max</span><span>${icon('clock')} ${fmt.minutes(route.estimatedMinutes)}</span><span class="${budget === 'Over budget' ? 'over-budget' : 'within-budget'}">${budget}</span></span></button>`;
 }
 
 function updateResults() {
@@ -865,14 +867,14 @@ function profileSvg(route) {
 
 function updateInsight() {
   const route = state.routes[state.selectedRoute];
-  if (!route?.points) { $('#routeInsight').innerHTML = '<div class="empty-icon">⌁</div><strong>No selected route</strong><p>Adjust the slope limit or select points within the terrain grid.</p>'; return; }
+  if (!route?.points) { $('#routeInsight').innerHTML = `<div class="empty-icon">${icon('route')}</div><strong>No selected route</strong><p>Adjust the slope limit or select points within the terrain grid.</p>`; return; }
   const total = route.distanceMeters;
   const source = state.routeGrid;
   const nearLimit = route.segments.filter((segment) => segment.slopeDeg >= state.maxSlope * 2 / 3).length;
   const routeName = state.selectedRoute === 'shortest' ? 'Shortest route' : state.selectedRoute === 'waypoint' ? 'Via waypoint' : 'Gentler route';
   const routeMethod = state.selectedRoute === 'conservative' ? 'The route gives steeper segments a higher cost.' : state.selectedRoute === 'waypoint' ? 'The route visits your waypoint between the start and destination.' : 'The route minimizes horizontal distance.';
   const budgetText = route.estimatedMinutes <= state.timeBudgetMinutes ? `Within the ${fmt.minutes(state.timeBudgetMinutes)} one-way budget by ${fmt.minutes(state.timeBudgetMinutes - route.estimatedMinutes)}.` : `Exceeds the ${fmt.minutes(state.timeBudgetMinutes)} one-way budget by ${fmt.minutes(route.estimatedMinutes - state.timeBudgetMinutes)}.`;
-  $('#routeInsight').innerHTML = `<div class="insight-head"><span class="insight-dot"></span><strong>${routeName}</strong></div><div class="insight-stats"><div><small>TRAVEL DISTANCE</small><strong>${fmt.distance(total)}</strong></div><div><small>MAX SEGMENT SLOPE</small><strong>${route.maxSlopeDeg.toFixed(1)}°</strong></div><div><small>ASCENT</small><strong>${fmt.height(route.ascentMeters)}</strong></div><div><small>TIME / ASSUMED</small><strong>${fmt.minutes(route.estimatedMinutes)}</strong></div></div>${profileSvg(route)}<p class="insight-copy">${budgetText} Computed from ${route.points.length} sampled cells in a ${source.resolutionMeters} m elevation grid. ${nearLimit} of ${route.segments.length} edges fall in the upper third of your ${state.maxSlope}° model limit. ${source === state.regionalGrid ? 'Regional routing samples every fourth 20 m source pixel; hazards between samples are unknown. ' : ''}${routeMethod} The limit is applied to every graph edge.</p><button id="inspectSteepest" class="outline-button">Inspect steepest segment ↗</button>`;
+  $('#routeInsight').innerHTML = `<div class="insight-head"><span class="insight-dot"></span><strong>${routeName}</strong></div><div class="insight-stats"><div><small>TRAVEL DISTANCE</small><strong>${fmt.distance(total)}</strong></div><div><small>MAX SEGMENT SLOPE</small><strong>${route.maxSlopeDeg.toFixed(1)}°</strong></div><div><small>ASCENT</small><strong>${fmt.height(route.ascentMeters)}</strong></div><div><small>TIME / ASSUMED</small><strong>${fmt.minutes(route.estimatedMinutes)}</strong></div></div>${profileSvg(route)}<p class="insight-copy">${budgetText} Computed from ${route.points.length} sampled cells in a ${source.resolutionMeters} m elevation grid. ${nearLimit} of ${route.segments.length} edges fall in the upper third of your ${state.maxSlope}° model limit. ${source === state.regionalGrid ? 'Regional routing samples every fourth 20 m source pixel; hazards between samples are unknown. ' : ''}${routeMethod} The limit is applied to every graph edge.</p><button id="inspectSteepest" class="outline-button">Inspect steepest segment ${icon('arrow-up-right')}</button>`;
   $('#inspectSteepest').addEventListener('click', () => {
     const i = route.segments.reduce((best, s, index) => s.slopeDeg > route.segments[best].slopeDeg ? index : best, 0);
     const segment = route.segments[i];
@@ -1051,7 +1053,7 @@ function switchRegion(regionId) {
   $('#hiriseLayerDetail').textContent = regionId === 'jezero' ? 'MRO · 25 cm Jezero mosaic' : regionId === 'gale' ? 'MRO · Curiosity site mosaic' : 'MRO · Columbia Hills only';
   $('#terrainModeChip').textContent = regionId === 'gale' ? '3D / MERGED DEM' : '3D / CTX DEM';
   $('#regionalKeyGroup').hidden = regionId !== 'jezero';
-  $('#roverBtn').textContent = regionId === 'jezero' ? 'Use Sol 464 location ↗' : 'Use study point ↗';
+  $('#roverBtn').innerHTML = `${regionId === 'jezero' ? 'Use Sol 464 location' : 'Use study point'} ${icon('arrow-up-right')}`;
   $('#destinationSource').hidden = !region.destinationSource;
   if (region.destinationSource) $('#destinationSource').href = region.destinationSource;
   $('#scienceTitle').textContent = region.scienceTitle;

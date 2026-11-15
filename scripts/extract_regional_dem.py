@@ -77,6 +77,7 @@ def main() -> None:
             "minimumMeters": minimum,
             "maximumMeters": maximum,
             "processing": "Every fourth source pixel sampled without interpolation; missing source cells remain missing. Used for exploratory 80 m regional route search when stops extend beyond the 20 m landing-area grid, and for a coarser 3D visual mesh.",
+            "siAssistance": "OpenAI Codex assisted with extraction code and documentation. Elevation values come from the cited USGS source raster and deterministic processing; no SI-generated measurements are present.",
         }
         OUTPUT_META.parent.mkdir(parents=True, exist_ok=True)
         encoded.astype("<u2", copy=False).tofile(OUTPUT_VALUES)

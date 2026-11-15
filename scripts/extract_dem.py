@@ -73,6 +73,7 @@ def main() -> None:
             "maximumQuantizationErrorMeters": round(maximum_error, 6),
             "validCells": int(encoded.size),
             "processing": "Full source raster; no crop, reprojection, interpolation, or invented cells. Elevation quantized to 0.02 m for transport.",
+            "siAssistance": "OpenAI Codex assisted with extraction code and documentation. Elevation values come from the cited USGS source raster and deterministic processing; no SI-generated measurements are present.",
         }
         OUTPUT_META.parent.mkdir(parents=True, exist_ok=True)
         encoded.astype("<u2", copy=False).tofile(OUTPUT_VALUES)

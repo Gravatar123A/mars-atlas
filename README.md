@@ -2,7 +2,10 @@
 
 An independent Marswalk research prototype that turns planetary observations into inspectable route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
 
-**Live app:** https://gravatar123a.github.io/mars-atlas/
+**Live site:** https://space-apps-nasa-1.vercel.app/  
+**Workspace:** https://space-apps-nasa-1.vercel.app/app/  
+**Guide and PowerPoint:** https://space-apps-nasa-1.vercel.app/guide/  
+**Complete source register:** https://space-apps-nasa-1.vercel.app/resources/
 
 ## What works
 
@@ -10,7 +13,7 @@ An independent Marswalk research prototype that turns planetary observations int
 - Region links can be shared with `?region=jezero`, `?region=gale`, or `?region=gusev`. Gusev presents a map study with distance measurement and hides route forms that lack numerical terrain support.
 - Gale routes use measured cells sampled every 20 m from the USGS 1 m Gale merged mosaic. Bradbury Landing is a NASA-published coordinate; the nearby east study point is an explicitly labelled scenario coordinate. The merged source includes MRO HiRISE/CTX, Mars Express HRSC, and MOLA gap coverage, so source detail and uncertainty vary.
 - Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
-- Large interactive 3D elevation view with left-button drag orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. Switch between the 20 m landing-area DEM (320 m visual mesh) and a broader USGS/JPL Jezero CTX DEM (89 × 101 km; 80 m transport samples and about 1 km visual mesh). The 2D ◈ control fits the regional overview.
+- Large interactive 3D elevation view with left-button drag orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. Switch between the 20 m landing-area DEM (320 m visual mesh) and a broader USGS/JPL Jezero CTX DEM (89 × 101 km; 80 m transport samples and about 1 km visual mesh). The 2D region-fit control shows the broader overview.
 - NASA-documented start and destination presets: Octavia E. Butler Landing and Perseverance's Sol 464 location at Hogwallow Flats. Users can select any Mars coordinate for map exploration; route calculations require the measured DEM footprint.
 - Real A* graph search over verified **numeric** MRO CTX/USGS elevation: 20 m cells in the 31.9 × 30.2 km landing footprint, or 80 m sampled cells in the 89 × 101 km Jezero region when stops extend beyond the landing grid. The search runs in a worker so the interface remains responsive. It refuses missing data, edges steeper than the user limit, and diagonal shortcuts across blocked cells. The selected route can be colored by slope relative to that limit.
 - Shortest available and terrain-conservative profiles, plus an optional route through a user-selected waypoint. Results include computed distance, ascent, maximum sampled slope, a numeric elevation profile, an accessible metrics table, and an explicitly modelled time estimate.
@@ -22,17 +25,17 @@ An independent Marswalk research prototype that turns planetary observations int
 
 ## Run locally
 
-The browser app has no JavaScript package dependencies.
+The browser app runs as static HTML and JavaScript. The build uses local Lucide icon assets; development screenshots use Puppeteer Core.
 
 ```powershell
 python -m http.server 4173
 ```
 
-Open `http://localhost:4173/`. The checked-in route terrain packages are the Jezero landing and regional metadata/binaries plus `public/data/gale-landing-meta.json` and `public/data/gale-landing-u16.bin`. Source GeoTIFFs are not needed for normal use. The app verifies each binary package SHA-256 before using it.
+Open `http://localhost:4173/` for the landing page and `http://localhost:4173/app/` for the workspace. The checked-in route terrain packages are the Jezero landing and regional metadata/binaries plus `public/data/gale-landing-meta.json` and `public/data/gale-landing-u16.bin`. Source GeoTIFFs are not needed for normal use. The app verifies each binary package SHA-256 before using it.
 
 ```powershell
 node --test tests/*.test.mjs
-node scripts/build.mjs
+npm run build
 ```
 
 `dist/` is the static deployment artifact. GitHub Pages deploys it automatically from the `master` branch after the tests and build pass. Relative asset paths also allow hosting under the repository subpath.
@@ -51,6 +54,11 @@ For Gale, run `python scripts/extract_gale_dem.py`. The script reads byte ranges
 - `src/route-worker.js` — background route calculation for both DEM footprints.
 - `src/terrain.js` — Mars distances, grid coordinates, A* search, slope limits, and route metrics.
 - `src/style.css` — responsive interface.
+- `src/refinement.css` — current visual system and icon sizing.
+- `index.html` — landing page.
+- `app/index.html` — research workspace.
+- `guide/` — annotated web guide and downloadable PowerPoint.
+- `resources/catalog.json` — complete data and tool register rendered by the source page.
 - `public/data/jezero-grid-meta.json` — source metadata, geometry, processing record, and checksums.
 - `public/data/jezero-elevation-u16.bin` — numeric full-footprint elevation package.
 - `public/data/jezero-regional-meta.json` and `jezero-regional-u16.bin` — broader Jezero context terrain and checksums.
@@ -68,10 +76,11 @@ For Gale, run `python scripts/extract_gale_dem.py`. The script reads byte ranges
 - [LIMITATIONS.md](LIMITATIONS.md) — scientific and product limits.
 - [CHALLENGE_COMPLIANCE.md](CHALLENGE_COMPLIANCE.md) — mapping against the released 2026 official challenge statement.
 - [PRESENTATION.md](PRESENTATION.md) — short demonstration script.
+- [SUBMISSION_FIELDS.md](SUBMISSION_FIELDS.md) — copy-ready project details, SI disclosure, and all NASA/other link entries.
 
 ## License and attribution
 
-Original application code and authored documentation are released under the [MIT License](LICENSE). The externally produced Mars terrain products and live imagery are credited in [DATA_SOURCES.md](DATA_SOURCES.md); they are not relicensed by this repository. The font files are loaded from Google Fonts under their own terms. The project does not imply NASA, USGS, or ESA endorsement.
+Original application code and authored documentation are released under the [MIT License](LICENSE). External terrain products, imagery, Lucide icons, and fonts retain their own terms and are credited in the [source register](resources/catalog.json). OpenAI Codex assisted with code, text, and presentation production; the disclosure appears in `package.json`, the source page, and [SUBMISSION_FIELDS.md](SUBMISSION_FIELDS.md). The project does not imply NASA, USGS, or ESA endorsement.
 
 ## Development status
 

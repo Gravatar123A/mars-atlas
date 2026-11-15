@@ -126,6 +126,7 @@ def main():
                     "minimumMeters": minimum,
                     "maximumMeters": maximum,
                     "processing": "6 km landing-area window; one measured 1 m mosaic pixel selected every 20 m without interpolation. Mixed underlying sensor resolution and missing values retained. Exploratory route screening only.",
+                    "siAssistance": "OpenAI Codex assisted with extraction code and documentation. Elevation values come from the cited USGS source raster and deterministic processing; no SI-generated measurements are present.",
                 }
                 OUTPUT_META.parent.mkdir(parents=True, exist_ok=True)
                 encoded.astype("<u2", copy=False).tofile(OUTPUT_VALUES)

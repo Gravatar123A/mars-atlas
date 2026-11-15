@@ -3,9 +3,17 @@
   "version": "0.1.0",
   "private": true,
   "type": "module",
+  "siDisclosure": "OpenAI Codex assisted in authoring and reviewing code, interface text, documentation, and the PowerPoint guide. Scientific source rasters and orbital tiles are externally published; derived terrain packages and route metrics use deterministic software processing. No SI-generated image, video, or audio is included.",
   "scripts": {
     "dev": "python -m http.server 4173",
-    "build": "node scripts/build.mjs",
+    "build": "node scripts/copy-icons.mjs && node scripts/build.mjs",
+    "icons": "node scripts/copy-icons.mjs",
     "test": "node --test tests/*.test.mjs"
+  },
+  "dependencies": {
+    "lucide-static": "^1.73.0"
+  },
+  "devDependencies": {
+    "puppeteer-core": "^25.17.0"
   }
 }

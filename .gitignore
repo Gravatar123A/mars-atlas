@@ -7,3 +7,7 @@ dist/
 .npm-cache/
 .python/
 __pycache__/
+.work/
+.vercel/
+
+.vercel

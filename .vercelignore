@@ -1,0 +1,8 @@
+.data-cache/
+.python/
+.work/
+.tmp/
+.npm-cache/
+node_modules/
+dist/
+.git/
