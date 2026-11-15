@@ -68,6 +68,10 @@ For Gale, run `python scripts/extract_gale_dem.py`. The script reads byte ranges
 - [CHALLENGE_COMPLIANCE.md](CHALLENGE_COMPLIANCE.md) — mapping against the released 2026 official challenge statement.
 - [PRESENTATION.md](PRESENTATION.md) — short demonstration script.
 
+## License and attribution
+
+Original application code and authored documentation are released under the [MIT License](LICENSE). The externally produced Mars terrain products and live imagery are credited in [DATA_SOURCES.md](DATA_SOURCES.md); they are not relicensed by this repository. The font files are loaded from Google Fonts under their own terms. The project does not imply NASA, USGS, or ESA endorsement.
+
 ## Development status
 
 The app is a functional deployed research prototype. Published terrain, imagery, and cited rover coordinates are separated from computed route outputs and user-set scenario assumptions. It does not contain every Mars dataset, live operational telemetry, or an astronaut-certifiable hazard model. Team contributions: implementation and research in this workspace only; no other contributors are claimed. The waypoint route is a user-directed scenario, not a science score. Future work should prioritize validated outcrop geometry, confidence masks, better terrain uncertainty estimates, and an evidence-grounded science objective.

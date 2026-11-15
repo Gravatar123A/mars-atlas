@@ -31,18 +31,19 @@ The app does not present computed values as NASA measurements. The table below i
 
 | Displayed metric | Origin | External data source |
 | --- | --- | --- |
-| Latitude and longitude of landing, Sol 426, and Sol 464 presets | Published mission coordinates | The NASA records linked above. |
-| Terrain elevation | Sampled from the CTX DEM at the selected grid cell | USGS-hosted MRO/CTX GeoTIFF linked above. |
-| Horizontal distance | Haversine sum along the returned route using the PDS label's 3,396,190 m Mars radius | CTX DEM PDS3 label linked above; route geometry is calculated in the browser. |
-| Cumulative ascent and descent | Sum of positive and negative differences between consecutive sampled CTX elevations | CTX DEM; calculation described in [SCIENTIFIC_METHOD.md](SCIENTIFIC_METHOD.md). |
-| Maximum sampled slope | `atan(abs(elevation change) / horizontal edge length)` for each route edge | CTX DEM elevations plus the documented distance calculation. |
-| Route path and conservative alternative | A* graph search across valid DEM cells; conservative mode applies the documented terrain penalty | CTX DEM; algorithm and parameters are documented in [SCIENTIFIC_METHOD.md](SCIENTIFIC_METHOD.md). |
-| Elevation profile | Ordered sampled CTX elevations along the returned route | CTX DEM. |
+| Latitude and longitude of landing and rover presets | Published mission coordinates; the Gale east study point is a labelled app scenario | The NASA records and scenario definition linked above. |
+| Terrain elevation | Sampled from the active numerical DEM at the selected grid cell | Jezero MRO/CTX or Gale merged USGS GeoTIFF linked above; Gusev has no numeric DEM in this app. |
+| Horizontal route distance | Haversine sum along the returned route using the source metadata's 3,396,190 m Mars radius | Jezero PDS label or Gale source projection; route geometry is calculated in the browser. |
+| Cumulative ascent and descent | Sum of positive and negative differences between consecutive sampled DEM elevations | Active Jezero or Gale DEM; calculation described in [SCIENTIFIC_METHOD.md](SCIENTIFIC_METHOD.md). |
+| Maximum sampled slope | `atan(abs(elevation change) / horizontal edge length)` for each route edge | Active DEM elevations plus the documented distance calculation. |
+| Route path and conservative alternative | A* graph search across valid DEM cells; conservative mode applies the documented terrain penalty | Active Jezero or Gale DEM; algorithm and parameters are documented in [SCIENTIFIC_METHOD.md](SCIENTIFIC_METHOD.md). |
+| Elevation profile | Ordered sampled elevations along the returned route | Active Jezero or Gale DEM. |
 | Travel time and budget status | `distance / user-selected speed`; compared with the user-selected one-way budget | No external data source. These are explicitly labelled scenario assumptions. |
-| Scale bar | Map projection geometry using the same PDS label radius | CTX DEM PDS3 label. |
+| Scale bar | Map projection geometry using the 3,396,190 m Mars radius | Jezero PDS label and Gale mosaic projection. |
 | 3D terrain surface | Source DEM elevations sampled every 320 m for a display mesh; vertical height shown at 6× scale and triangles joined between samples | The same CTX DEM. The palette is a visualization choice, not a separate NASA dataset. |
 | Regional 3D terrain surface | Broader 20 m source DEM sampled at 80 m for transport, then about 1,040 m for the visual mesh; missing source cells are not filled | USGS/JPL Jezero science-investigation CTX DEM linked above. The palette and 6× vertical scale are display choices. |
-| Point elevation inspector | Nearest finite cell elevation, cell spacing and click-to-cell-center offset | The local CTX DEM where available, otherwise the regional 80 m sample package. No imagery-derived heights. |
+| Gale 3D terrain surface | Gale 1 m merged mosaic sampled at 20 m for transport, then at the mesh stride reported in the app; no missing values are synthesized | USGS Gale merged DEM linked above. The palette and 6× vertical scale are display choices. |
+| Point elevation inspector | Nearest finite cell elevation, cell spacing and click-to-cell-center offset | Active Jezero or Gale DEM where available. No imagery-derived heights; Gusev elevation is unavailable. |
 | Two-point measurement | Haversine horizontal distance; endpoint elevation difference only when both samples use the same product | 3,396,190 m Mars radius from the CTX label and the DEMs above. This is not a traversability or path measurement. |
 
 No external weather, radiation, life-support, communications, trafficability, hazard, astronaut-performance, or live rover telemetry dataset is used. Google Fonts are loaded only for typography and do not contribute scientific data or metrics.
