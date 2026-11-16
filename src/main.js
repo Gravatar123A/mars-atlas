@@ -1,5 +1,6 @@
 import { cellAt, decodeTerrain, distanceMeters, sampleElevation, selectRouteGrid } from './terrain.js?v=10';
 import { buildRouteGuide } from './navigation.js';
+import { renderGlobe, loadGlobeTexture, globeSiteScreen } from './globe.js';
 
 const $ = (selector) => document.querySelector(selector);
 const app = $('#app');
@@ -13,6 +14,7 @@ const GALE_LANDING = { lat: -4.5895, lon: 137.4417 };
 const GALE_STUDY = { lat: -4.5895, lon: 137.4490 };
 const GUSEV_LANDING = { lat: -14.5692, lon: 175.4729 };
 const REGIONS = {
+  planet: { name: 'Planet-wide Mars', mission: 'NASA Mars Trek · MOLA', start: { lat: 0, lon: 0 }, destination: { lat: 0, lon: 0 }, startName: 'Mars', destinationName: 'Mars', destinationSource: null, ctx: 'globalCtx', hirise: 'hirise', scienceTitle: 'A planet of distinct terrains', science: 'The global MOLA color hillshade shows topographic context. Zoom to a rover landing region to inspect local imagery and documented traverses.', scienceSource: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars' },
   jezero: { name: 'Jezero crater', mission: 'Mars 2020 · Perseverance', start: LANDING, destination: HOGWALLOW_SOL464, startName: 'Octavia E. Butler Landing', destinationName: 'Hogwallow Flats · Sol 464', destinationSource: HOGWALLOW_SOURCE, ctx: 'ctx', hirise: 'hirise', scienceTitle: 'Delta-front geology', science: 'Perseverance investigated sedimentary rocks near the ancient Jezero delta. The sample route connects documented positions; it is not the rover traverse.', scienceSource: HOGWALLOW_SOURCE },
   gale: { name: 'Gale crater', mission: 'Mars Science Laboratory · Curiosity', start: GALE_LANDING, destination: GALE_STUDY, startName: 'Bradbury Landing', destinationName: 'East study point · scenario', destinationSource: null, ctx: 'galeCtx', hirise: 'galeHirise', scienceTitle: 'Gale crater geology', science: 'Curiosity landed at Bradbury Landing near the layered Mount Sharp. The east study point is a model scenario, not a NASA science-site coordinate.', scienceSource: 'https://science.nasa.gov/mission/msl-curiosity/location-map/' },
   gusev: { name: 'Gusev crater', mission: 'Mars Exploration Rover · Spirit', start: GUSEV_LANDING, destination: { lat: -14.5692, lon: 175.4800 }, startName: 'Spirit landing site', destinationName: 'East study point · scenario', destinationSource: null, ctx: 'globalCtx', hirise: 'gusevHirise', scienceTitle: 'Gusev crater geology', science: 'Spirit explored Gusev crater and the Columbia Hills. This view shows orbital imagery and a documented landing position. No numerical route terrain is packaged for this area.', scienceSource: 'https://ntrs.nasa.gov/citations/20040191840' },
@@ -23,6 +25,12 @@ const SITES = [
   { id: 'hogwallow', region: 'jezero', name: 'Hogwallow Flats · Sol 464', point: HOGWALLOW_SOL464, type: 'Rover position', mission: 'Mars 2020 · Perseverance', significance: 'Documented delta-front rover location used as the default research destination.', note: 'Historical rover position; route geometry is computed independently.', source: HOGWALLOW_SOURCE },
   { id: 'bradbury', region: 'gale', name: 'Bradbury Landing', point: GALE_LANDING, type: 'Landing site', mission: 'MSL · Curiosity', significance: 'Curiosity landing position documented by NASA.', note: 'The east study point in this region is an illustrative model input, not a published rover location.', source: 'https://ntrs.nasa.gov/api/citations/20130011617/downloads/20130011617.pdf' },
   { id: 'spirit', region: 'gusev', name: 'Spirit landing site', point: GUSEV_LANDING, type: 'Landing site', mission: 'MER · Spirit', significance: 'Spirit landing position on Gusev crater plains.', note: 'This region currently supports imagery and distance measurement, not DEM routing.', source: 'https://ntrs.nasa.gov/citations/20040191840' },
+];
+const PLANET_MISSIONS = [
+  { name: 'Perseverance · Jezero', region: 'jezero', point: LANDING },
+  { name: 'Curiosity · Gale', region: 'gale', point: GALE_LANDING },
+  { name: 'Spirit · Gusev', region: 'gusev', point: GUSEV_LANDING },
+  { name: 'Opportunity · Meridiani (approx.)', region: null, point: { lat: -1.95, lon: -5.53 } },
 ];
 const MAP_LAYERS = {
   ctx: { id: 'JEZ_ctx_B_soc_008_orthoMosaic_6m_Eqc_latTs0_lon0', maxZoom: 13, title: 'CTX controlled mosaic', mission: 'Mars Reconnaissance Orbiter', instrument: 'Context Camera', resolution: '6 m imagery', link: 'https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars', limitation: 'Orbital image brightness is not elevation or a measure of safe footing.' },
@@ -73,6 +81,9 @@ const state = {
   terrainPointer: null,
   terrainFrame: null,
   pointer: null,
+  traverses: {},
+  showTraverses: true,
+  globeView: { lon: 35, lat: 15, zoom: 1 },
 };
 
 const fmt = {
@@ -84,6 +95,9 @@ const fmt = {
   minutes: (n) => n >= 60 ? `${Math.floor(n / 60)} h ${Math.round(n % 60)} m` : `${Math.round(n)} min`,
 };
 
+const globeAssetReady = loadGlobeTexture(new URL('../public/data/mola-global-z2.jpg', import.meta.url));
+globeAssetReady.then(() => { if (state.regionId === 'planet' && state.viewMode === 'terrain') scheduleTerrainRender(); }).catch((error) => console.warn(`Globe texture unavailable: ${error.message}`));
+
 function el(html) { const div = document.createElement('div'); div.innerHTML = html.trim(); return div.firstElementChild; }
 function escapeHtml(value) { return String(value).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c])); }
 
@@ -91,15 +105,19 @@ app.innerHTML = `
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="../"><span class="brand-mark">${icon('orbit')}</span><span>Mars Atlas</span></a>
+      <button id="openPlan" class="plan-trigger" aria-expanded="false" aria-controls="routeSetupPanel">${icon('route')} <span>Plan route</span></button>
       <div class="topbar-center"><span class="signal-dot"></span> <span id="topRegionLabel">Mars 2020 · Jezero crater</span></div>
       <nav class="topbar-links" aria-label="Site"><a href="../guide/">Guide</a><a href="../resources/">Sources</a></nav>
+      <a id="mobileGuideLink" class="mobile-guide-link" href="../guide/">Guide</a>
       <div class="topbar-actions"><span class="prototype-pill">Research prototype</span><button id="exportBtn" class="top-button" disabled>${icon('download')} <span>Export brief</span></button></div>
     </header>
     <div class="workspace">
-      <aside class="side left-side">
+      <div id="planScrim" class="plan-scrim" hidden></div>
+      <aside class="side left-side" id="routeSetupPanel" aria-label="Regions and route setup">
+        <div class="plan-panel-head"><div><small>MISSION WORKSPACE</small><strong>Regions &amp; route</strong></div><button id="closePlan" aria-label="Close regions and route panel">${icon('x')}</button></div>
         <div class="panel-scroll">
           <label class="section-eyebrow region-label" for="regionSelect">Study region</label>
-          <select id="regionSelect" class="region-select"><option value="jezero">Jezero crater · route study</option><option value="gale">Gale crater · route study</option><option value="gusev">Gusev crater · map study</option></select>
+          <select id="regionSelect" class="region-select"><option value="planet">All of Mars · global map</option><option value="jezero">Jezero crater · route study</option><option value="gale">Gale crater · route study</option><option value="gusev">Gusev crater · map study</option></select>
           <p id="regionStatus" class="region-status">20 m landing terrain and 80 m regional terrain.</p>
           <div class="divider"></div>
           <div id="setupEyebrow" class="section-eyebrow">Route setup</div>
@@ -133,6 +151,8 @@ app.innerHTML = `
           <div id="routeStatus" class="status-line" role="status">Loading NASA terrain data…</div>
           <details class="saved-plans"><summary>Saved mission plans</summary><div class="saved-plans-body"><label for="scenarioName">Plan name</label><input id="scenarioName" type="text" maxlength="50" placeholder="e.g. Delta traverse"><button class="outline-button" id="saveScenario">Save current plan</button><div id="savedScenarioList" class="saved-scenario-list">No plans saved in this browser.</div><small>Plans stay in this browser. Restoring a plan recalculates its routes from the checked-in terrain grid.</small></div></details>
           </div>
+          <div id="planetControls" class="planet-controls" hidden><p>Explore a NASA MOLA global map, then open a landing region for local imagery and elevation studies.</p><label><input id="showTraverses" type="checkbox" checked> Show recorded rover traverses</label><small>Perseverance and Curiosity lines come from public JPL map feeds. They show where rovers drove, not suggested walking routes.</small><div class="planet-quicklinks"><button data-open-region="jezero">Explore Jezero ${icon('arrow-up-right')}</button><button data-open-region="gale">Explore Gale ${icon('arrow-up-right')}</button><button data-open-region="gusev">Explore Gusev ${icon('arrow-up-right')}</button></div></div>
+          <nav class="drawer-links" aria-label="More about Mars Atlas"><a href="../guide/">How to use this map ${icon('arrow-up-right')}</a><a href="../resources/">All sources ${icon('arrow-up-right')}</a></nav>
           <div class="divider"></div>
           <div class="section-eyebrow">Map layers</div><h2>Terrain views</h2>
           <div class="layer-choice"><label><input type="radio" name="basemap" value="ctx" checked><span class="swatch ctx-swatch"></span><span>CTX imagery<small id="ctxLayerDetail">MRO · 6 m mosaic</small></span></label><button class="info-button" data-evidence="ctx" aria-label="CTX source information">${icon('info')}</button></div>
@@ -155,33 +175,40 @@ app.innerHTML = `
           <div id="mapToolbox" class="map-toolbox" role="group" aria-label="2D map tools"><button data-map-tool="route" class="active" aria-pressed="true">${icon('route')} Choose point</button><button data-map-tool="inspect" aria-pressed="false">${icon('mountain')} Inspect height</button><button data-map-tool="measure" aria-pressed="false">${icon('ruler')} Measure</button></div>
           <div id="slopeLegend" class="slope-legend" hidden><button id="slopeToggle" aria-pressed="true">Show route slope</button><span><i class="slope-low"></i>low</span><span><i class="slope-mid"></i>middle</span><span><i class="slope-high"></i>near limit</span><small>Relative to your slope limit; not a safety rating.</small></div>
           <div id="mapAnalysis" class="map-analysis" role="status" hidden></div>
+          <label id="roverLegend" class="rover-legend" hidden><input id="showTraversesMap" type="checkbox" checked><span></span> Recorded rover traverse · JPL snapshot</label>
           <div class="scale-box"><div id="scaleLine"></div><span id="scaleText">—</span></div>
-          <div class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">20 M ROUTE DEM</span> <span id="regionalKeyGroup"><span class="coverage-fill"></span> <span id="regionalKeyText">80 M REGIONAL DEM</span></span></div>
+          <div id="coverageKey" class="coverage-key"><span class="coverage-line"></span> <span id="coverageKeyText">20 M ROUTE DEM</span> <span id="regionalKeyGroup"><span class="coverage-fill"></span> <span id="regionalKeyText">80 M REGIONAL DEM</span></span></div>
           <div id="terrain3dLegend" class="terrain-legend" hidden><div><span id="terrainModeChip" class="terrain-mode-chip">3D / CTX DEM</span><strong id="terrainScopeTitle">Measured terrain</strong><small id="terrainMeshNote">Left drag to orbit · Scroll to zoom · vertical scale 6×</small><small id="terrainColorNote">Elevation tint from measured terrain; no photo texture</small><div class="terrain-scope" role="group" aria-label="3D terrain area"><button data-scope="local" class="active" aria-pressed="true">Landing area</button><button data-scope="regional" aria-pressed="false" disabled>Jezero region</button></div><a id="terrainSourceLink" href="https://asc-pds-services.s3.us-west-2.amazonaws.com/mosaic/mars2020_trn/CTX/index.html" target="_blank" rel="noopener">USGS terrain source ${icon('external-link')}</a></div><button id="resetTerrain" aria-label="Reset 3D terrain view">Reset view</button></div>
           <div id="mapAttribution" class="map-attribution">Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS</div>
         </div>
+        <div id="planetBar" class="planet-bar" hidden><div><small>NASA MARS TREK / GLOBAL MOLA</small><strong>Explore the whole planet</strong><span>Open a region to inspect local DEM coverage and rover history.</span></div><form id="planetSearchForm" class="planet-search"><label for="planetSearch">Find a place</label><input id="planetSearch" type="search" placeholder="18.44, 77.45 or Jezero" autocomplete="off"><button type="submit" aria-label="Go to place">${icon('search')}</button></form><button data-open-region="jezero">Jezero</button><button data-open-region="gale">Gale</button><button data-open-region="gusev">Gusev</button></div>
         <div id="resultsBar" class="results-bar"><div class="results-title"><span class="section-eyebrow">Route comparison</span><h2>Choose a route <span id="routeCount" class="route-count">0 routes</span></h2></div><div id="comparisonNote" class="comparison-note">Calculate routes to compare distance and slope.</div></div>
         <div id="routeCards" class="route-cards"></div>
       </main>
       <aside class="side right-side" id="sourceInspector" aria-label="Evidence and route analysis">
         <div class="panel-scroll">
+          <nav class="inspector-nav" aria-label="Analysis sections"><button data-jump="evidenceCard">Evidence</button><button data-jump="routeGuide">Directions</button><button data-jump="siteList">Sites</button></nav>
           <div class="section-eyebrow">Route overview</div>
           <div id="missionOverview" class="mission-overview"></div>
           <div class="divider"></div>
-          <div class="section-eyebrow">Directions</div>
-          <h2>Follow the route</h2>
-          <p class="side-intro">Select a checkpoint to locate it on the 2D map. Headings are measured clockwise from north.</p>
-          <div id="routeGuide" class="route-guide" aria-live="polite"><p>Calculate a route to see bearings and turns.</p></div>
-          <div class="divider"></div>
           <div class="section-eyebrow">Evidence and analysis</div>
-          <h2>Data behind this route</h2>
-          <p class="side-intro">Source records and limits for the map and route calculations.</p>
+          <h2 id="evidenceHeading">Data behind this route</h2>
+          <p id="evidenceIntro" class="side-intro">Source records and limits for the map and route calculations.</p>
           <div class="source-tabs"><button data-evidence="dem" class="active">Route DEM</button><button data-evidence="regional">Regional DEM</button><button data-evidence="ctx">Imagery</button><button data-evidence="themis">Thermal</button></div>
           <div id="evidenceCard"></div>
+          <div class="divider"></div>
+          <div class="section-eyebrow">Directions</div>
+          <h2 id="directionsHeading">Follow the route</h2>
+          <p id="directionsIntro" class="side-intro">Select a checkpoint to locate it on the 2D map. Headings are measured clockwise from north.</p>
+          <div id="routeGuide" class="route-guide" aria-live="polite"><p>Calculate a route to see bearings and turns.</p></div>
           <div class="divider"></div>
           <div class="section-eyebrow">Selected route analysis</div>
           <div id="routeInsight" class="route-insight"><div class="empty-icon">${icon('route')}</div><strong>Awaiting a route</strong><p>Calculate alternatives to inspect measured elevation and modelled slope.</p></div>
           <details class="route-table-details"><summary>Route metrics table</summary><table><caption>Computed route comparison</caption><thead><tr><th scope="col">Profile</th><th scope="col">Distance</th><th scope="col">Max slope</th><th scope="col">Ascent</th></tr></thead><tbody id="routeTableBody"><tr><td colspan="4">Calculate routes to populate this table.</td></tr></tbody></table></details>
+          <div class="divider"></div>
+          <div class="section-eyebrow">Mission history</div>
+          <h2>Where rovers drove</h2>
+          <div id="roverHistory" class="rover-history"></div>
           <div class="divider"></div>
           <div class="section-eyebrow">Science context</div>
           <div class="science-card"><div><strong id="scienceTitle">Delta-front geology</strong><p id="scienceCopy">NASA documents Perseverance near Jezero's ancient delta.</p><a id="scienceSource" href="${HOGWALLOW_SOURCE}" target="_blank" rel="noopener">NASA mission record ${icon('external-link')}</a></div></div>
@@ -196,6 +223,19 @@ app.innerHTML = `
     </div>
   </div>`;
 
+function setPlanOpen(open) {
+  app.querySelector('.shell').classList.toggle('plan-open', open);
+  $('#openPlan').setAttribute('aria-expanded', String(open));
+  $('#planScrim').hidden = !open;
+  if (open) $('#closePlan').focus();
+  else $('#openPlan').focus();
+}
+$('#openPlan').addEventListener('click', () => setPlanOpen(true));
+$('#closePlan').addEventListener('click', () => setPlanOpen(false));
+$('#planScrim').addEventListener('click', () => setPlanOpen(false));
+document.addEventListener('keydown', (event) => { if (event.key === 'Escape' && app.querySelector('.shell').classList.contains('plan-open')) setPlanOpen(false); });
+document.querySelectorAll('.inspector-nav button').forEach((button) => button.addEventListener('click', () => $(`#${button.dataset.jump}`).scrollIntoView({ behavior: 'smooth', block: 'start' })));
+
 function world(point, zoom) {
   const scale = 256 * 2 ** zoom;
   return { x: (point.lon + 180) / 360 * scale * 2, y: (90 - point.lat) / 180 * scale };
@@ -205,14 +245,21 @@ function screen(point) {
   const map = $('#map');
   const p = world(point, state.zoom);
   const c = world(state.center, state.zoom);
-  return { x: p.x - c.x + map.clientWidth / 2, y: p.y - c.y + map.clientHeight / 2 };
+  let dx = p.x - c.x;
+  if (state.regionId === 'planet') {
+    const circumference = 512 * 2 ** state.zoom;
+    if (dx > circumference / 2) dx -= circumference;
+    if (dx < -circumference / 2) dx += circumference;
+  }
+  return { x: dx + map.clientWidth / 2, y: p.y - c.y + map.clientHeight / 2 };
 }
 
 function fromScreen(x, y) {
   const map = $('#map');
   const c = world(state.center, state.zoom);
   const scale = 256 * 2 ** state.zoom;
-  return { lon: ((c.x + x - map.clientWidth / 2) / (scale * 2)) * 360 - 180, lat: 90 - ((c.y + y - map.clientHeight / 2) / scale) * 180 };
+  const lon = ((c.x + x - map.clientWidth / 2) / (scale * 2)) * 360 - 180;
+  return { lon: state.regionId === 'planet' ? ((lon + 180) % 360 + 360) % 360 - 180 : lon, lat: Math.max(-90, Math.min(90, 90 - ((c.y + y - map.clientHeight / 2) / scale) * 180)) };
 }
 
 function fitPoints(points, fill = .78) {
@@ -250,6 +297,7 @@ function fitRegion() {
 }
 
 function focusRoute() {
+  if (state.regionId === 'planet') { state.center = { lat: 0, lon: 35 }; state.zoom = 1.5; drawTiles(); return; }
   if (!state.grid) { state.center = { ...REGIONS[state.regionId].start }; state.zoom = 11; drawTiles(); return; }
   const route = state.routes[state.selectedRoute];
   fitPoints(route?.points || [state.start, state.destination, ...(state.waypoint ? [state.waypoint] : [])]);
@@ -273,8 +321,8 @@ function drawTiles() {
     const center = world(state.center, effectiveZoom);
     const halfW = map.clientWidth / (2 * factor);
     const halfH = map.clientHeight / (2 * factor);
-    const c0 = Math.max(0, Math.floor((center.x - halfW) / tileSize) - 1);
-    const c1 = Math.min(2 ** (z + 1) - 1, Math.floor((center.x + halfW) / tileSize) + 1);
+    const c0 = state.regionId === 'planet' ? Math.floor((center.x - halfW) / tileSize) - 1 : Math.max(0, Math.floor((center.x - halfW) / tileSize) - 1);
+    const c1 = state.regionId === 'planet' ? Math.floor((center.x + halfW) / tileSize) + 1 : Math.min(2 ** (z + 1) - 1, Math.floor((center.x + halfW) / tileSize) + 1);
     const r0 = Math.max(0, Math.floor((center.y - halfH) / tileSize) - 1);
     const r1 = Math.min(2 ** z - 1, Math.floor((center.y + halfH) / tileSize) + 1);
     const group = el(`<div class="tile-group ${key === 'mola' && state.basemap === 'ctx' ? 'context-backdrop' : ''}" style="opacity:${opacity}"></div>`);
@@ -284,7 +332,8 @@ function drawTiles() {
       img.draggable = false;
       img.loading = 'lazy';
       img.addEventListener('error', () => img.remove(), { once: true });
-      img.src = key === 'globalCtx' ? `https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/${z}/${row}/${col}` : `https://trek.nasa.gov/tiles/Mars/EQ/${layer.id}/1.0.0/default/default028mm/${z}/${row}/${col}.${layer.extension || 'png'}`;
+      const tileCol = state.regionId === 'planet' ? ((col % (2 ** (z + 1))) + 2 ** (z + 1)) % (2 ** (z + 1)) : col;
+      img.src = key === 'globalCtx' ? `https://astro.arcgis.com/arcgis/rest/services/OnMars/CTX/MapServer/tile/${z}/${row}/${tileCol}` : `https://trek.nasa.gov/tiles/Mars/EQ/${layer.id}/1.0.0/default/default028mm/${z}/${row}/${tileCol}.${layer.extension || 'png'}`;
       img.style.left = `${(col * tileSize - center.x) * factor + map.clientWidth / 2}px`;
       img.style.top = `${(row * tileSize - center.y) * factor + map.clientHeight / 2}px`;
       img.style.width = `${tileSize * factor + 0.5}px`;
@@ -410,6 +459,10 @@ function drawTerrainMarker(ctx, width, height, point, color, label) {
 
 function renderTerrain3d() {
   state.terrainFrame = null;
+  if (state.regionId === 'planet' && state.viewMode === 'terrain') {
+    renderGlobe($('#terrain3d'), state.globeView, PLANET_MISSIONS);
+    return;
+  }
   if (state.viewMode !== 'terrain' || !activeTerrainMesh() || !activeTerrainGrid()) return;
   const canvas = $('#terrain3d');
   const map = $('#map');
@@ -457,7 +510,7 @@ function renderTerrain3d() {
 }
 
 function scheduleTerrainRender() {
-  if (state.viewMode !== 'terrain' || !activeTerrainMesh() || state.terrainFrame) return;
+  if (state.viewMode !== 'terrain' || (state.regionId !== 'planet' && !activeTerrainMesh()) || state.terrainFrame) return;
   state.terrainFrame = requestAnimationFrame(renderTerrain3d);
 }
 
@@ -477,13 +530,14 @@ function setTerrainScope(scope) {
 }
 
 function resetTerrainView() {
+  if (state.regionId === 'planet') { state.globeView = { lon: 35, lat: 15, zoom: 1 }; scheduleTerrainRender(); return; }
   state.terrainView = { yaw: -0.72, pitch: 0.82, zoom: 1, exaggeration: 6 };
   scheduleTerrainRender();
 }
 
 function updateCoverageInfo() {
   if (!state.grid) {
-    $('#coverageInfo').textContent = state.regionId === 'gusev' ? 'Gusev: NASA orbital imagery and a documented Spirit landing position. No numerical DEM is packaged here, so routing and 3D elevation are unavailable.' : 'Loading measured terrain for this region…';
+    $('#coverageInfo').textContent = state.regionId === 'planet' ? 'Planet-wide MOLA color hillshade is visual context. Local numerical route grids are packaged for Jezero and Gale only.' : state.regionId === 'gusev' ? 'Gusev: NASA orbital imagery and a documented Spirit landing position. No numerical DEM is packaged here, so routing and 3D elevation are unavailable.' : 'Loading measured terrain for this region…';
     return;
   }
   const local = state.grid;
@@ -495,7 +549,7 @@ function updateCoverageInfo() {
 
 function updateMapHint() {
   $('#pickHint').textContent = state.viewMode === 'terrain'
-    ? 'Left drag to orbit the CTX elevation surface. Switch to 2D imagery to select points or inspect measured elevations.'
+    ? state.regionId === 'planet' ? 'Left drag to turn the globe; scroll to zoom. This is a rendered MOLA visual layer, not a numerical 3D DEM.' : 'Left drag to orbit the CTX elevation surface. Switch to 2D imagery to select points or inspect measured elevations.'
     : state.mapTool === 'inspect'
       ? 'Click the 2D map to inspect a measured DEM elevation. Uncovered locations are marked unknown.'
       : state.mapTool === 'measure'
@@ -505,21 +559,22 @@ function updateMapHint() {
 }
 
 function setViewMode(mode) {
-  if (mode === 'terrain' && !state.terrainMesh) return;
+  if (mode === 'terrain' && state.regionId !== 'planet' && !state.terrainMesh) return;
   state.viewMode = mode;
   const terrain = mode === 'terrain';
   $('#terrain3d').hidden = !terrain;
-  $('#terrain3dLegend').hidden = !terrain;
+  $('#terrain3dLegend').hidden = !terrain || state.regionId === 'planet';
   $('#mapToolbox').hidden = terrain;
   $('#mapAnalysis').hidden = terrain || state.mapTool === 'route';
   $('#routeOverlay').style.display = terrain ? 'none' : '';
   $('#slopeLegend').hidden = terrain || !Object.values(state.routes).some((route) => route?.points);
   $('#map').classList.toggle('terrain-active', terrain);
+  if (!terrain) $('#map').classList.remove('globe-marker-hover');
   updateMapHint();
   $('#map').setAttribute('aria-label', terrain ? `Three dimensional ${REGIONS[state.regionId].name} elevation view. Drag to orbit and use plus or minus to zoom.` : `Interactive ${REGIONS[state.regionId].name} map. Use arrow keys to pan and plus or minus to zoom.`);
   document.querySelectorAll('[data-view]').forEach((button) => { const active = button.dataset.view === mode; button.classList.toggle('active', active); button.setAttribute('aria-pressed', String(active)); });
-  $('#cursorCoords').textContent = terrain ? `3D elevation / ${REGIONS[state.regionId].name}` : `${fmt.lat(state.center.lat)} / ${fmt.lon(state.center.lon)}`;
-  $('#mapAttribution').textContent = terrain ? `Terrain: USGS ${state.regionId === 'gale' ? 'merged Gale DEM' : 'MRO / CTX DEM'} · sampled visual mesh` : state.regionId === 'gusev' ? 'Imagery: NASA Mars Trek / ArcGIS OnMars · MRO / Mars Odyssey / MGS' : 'Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS';
+  $('#cursorCoords').textContent = terrain ? `${state.regionId === 'planet' ? '3D globe' : '3D elevation'} / ${REGIONS[state.regionId].name}` : `${fmt.lat(state.center.lat)} / ${fmt.lon(state.center.lon)}`;
+  $('#mapAttribution').textContent = state.regionId === 'planet' ? 'Global visual layer: NASA Mars Trek · MGS / MOLA color hillshade' : terrain ? `Terrain: USGS ${state.regionId === 'gale' ? 'merged Gale DEM' : 'MRO / CTX DEM'} · sampled visual mesh` : state.regionId === 'gusev' ? 'Imagery: NASA Mars Trek / ArcGIS OnMars · MRO / Mars Odyssey / MGS' : 'Imagery: NASA Mars Trek · MRO / Mars Odyssey / MGS';
   updateCoverageInfo();
   drawOverlay();
   scheduleTerrainRender();
@@ -544,7 +599,8 @@ function elevationDetails(sample) {
 
 function renderMapAnalysis() {
   const card = $('#mapAnalysis');
-  card.hidden = state.viewMode === 'terrain' || state.mapTool === 'route';
+  card.hidden = state.viewMode === 'terrain' || state.mapTool === 'route' || state.mapTool === 'explore';
+  if (state.mapTool === 'explore') { card.replaceChildren(); return; }
   if (state.mapTool === 'inspect') {
     const selected = state.inspection;
     card.innerHTML = `<div class="analysis-head"><span>LOCATION / ELEVATION</span><button data-analysis-clear aria-label="Clear inspected location">${icon('x')}</button></div>${selected ? `<p class="analysis-coords">${fmt.lat(selected.point.lat)} · ${fmt.lon(selected.point.lon)}</p>${elevationDetails(selected.sample)}` : '<p>Click the 2D map, or press Enter with the map focused, to inspect a location.</p>'}`;
@@ -566,6 +622,12 @@ function selectMapTool(tool) {
 }
 
 function handleMapPoint(point) {
+  if (state.regionId === 'planet') {
+    const clicked = screen(point);
+    const mission = PLANET_MISSIONS.find(({ point: location, region }) => region && Math.hypot(screen(location).x - clicked.x, screen(location).y - clicked.y) < 24);
+    if (mission) switchRegion(mission.region);
+    return;
+  }
   if (state.mapTool === 'route') { setPoint(state.pick, point); return; }
   const selected = { point, sample: preferredElevation(point) };
   if (state.mapTool === 'inspect') state.inspection = selected;
@@ -576,6 +638,18 @@ function handleMapPoint(point) {
 
 function svgPath(points) {
   return points.map((point, i) => { const p = screen(point); return `${i ? 'L' : 'M'}${p.x.toFixed(1)},${p.y.toFixed(1)}`; }).join(' ');
+}
+
+function traverseOverlay() {
+  if (!state.showTraverses) return '';
+  const keys = state.regionId === 'planet' ? ['perseverance', 'curiosity'] : state.regionId === 'jezero' ? ['perseverance'] : state.regionId === 'gale' ? ['curiosity'] : [];
+  return keys.map((key) => {
+    const paths = state.traverses[key]?.paths;
+    if (!paths) return '';
+    const coordinates = paths.map((path) => path.map(([lon, lat]) => ({ lat, lon })));
+    const d = coordinates.map((path) => svgPath(path)).join(' ');
+    return `<path d="${d}" fill="none" stroke="${key === 'perseverance' ? '#f4d794' : '#ecb5a9'}" stroke-width="${state.regionId === 'planet' ? 2 : 2.4}" stroke-linecap="round" stroke-linejoin="round" opacity=".9" stroke-dasharray="${state.regionId === 'planet' ? 'none' : '6 4'}"/>`;
+  }).join('');
 }
 
 function slopePaths(route) {
@@ -602,6 +676,12 @@ function drawOverlay() {
   if (state.viewMode === 'terrain') { svg.innerHTML = ''; scheduleTerrainRender(); return; }
   svg.setAttribute('viewBox', `0 0 ${map.clientWidth} ${map.clientHeight}`);
   const routes = Object.entries(state.routes).filter(([, route]) => route?.points);
+  if (state.regionId === 'planet') {
+    const missionMarkers = PLANET_MISSIONS.map(({ name, point, region }) => { const p = screen(point); const right = p.x > map.clientWidth - 180; return `<g class="planet-marker" data-region="${region || ''}" transform="translate(${p.x.toFixed(1)} ${p.y.toFixed(1)})"><circle r="9" fill="#dceef0" stroke="#0e1b23" stroke-width="3"/><text x="${right ? -15 : 15}" y="4" text-anchor="${right ? 'end' : 'start'}" fill="#fff" font-size="12" font-weight="700" paint-order="stroke" stroke="#17242c" stroke-width="4">${name}</text></g>`; }).join('');
+    svg.innerHTML = traverseOverlay() + missionMarkers;
+    $('#slopeLegend').hidden = true;
+    return;
+  }
   const paths = routes.map(([key, route]) => {
     const active = key === state.selectedRoute;
     const color = key === 'shortest' ? '#e8ad71' : key === 'waypoint' ? '#dcb5ef' : '#8cddcd';
@@ -633,7 +713,7 @@ function drawOverlay() {
   const analysisPoints = state.mapTool === 'inspect' ? (state.inspection ? [state.inspection] : []) : state.mapTool === 'measure' ? state.measurePoints : [];
   const analysisLine = state.mapTool === 'measure' && analysisPoints.length === 2 ? `<path d="${svgPath(analysisPoints.map((item) => item.point))}" stroke="#f5d990" stroke-width="2.5" stroke-dasharray="6 5" fill="none"/>` : '';
   const analysisMarkers = analysisPoints.map((item, index) => { const p = screen(item.point); return `<g><circle cx="${p.x}" cy="${p.y}" r="9" fill="#f5d990" opacity=".23"/><circle cx="${p.x}" cy="${p.y}" r="4" fill="#f5d990"/><text x="${p.x + 11}" y="${p.y - 8}" fill="#fff4ce" font-size="11" font-weight="700" paint-order="stroke" stroke="#111a20" stroke-width="3">${state.mapTool === 'measure' ? index ? 'B' : 'A' : 'SAMPLE'}</text></g>`; }).join('');
-  svg.innerHTML = bounds + paths + markers + checkpoints + analysisLine + analysisMarkers;
+  svg.innerHTML = bounds + traverseOverlay() + paths + markers + checkpoints + analysisLine + analysisMarkers;
   $('#slopeLegend').hidden = !routes.length;
 }
 
@@ -641,7 +721,8 @@ function drawScale() {
   const a = fromScreen(0, 0);
   const b = fromScreen(100, 0);
   const meters = distanceMeters(a, b, state.grid?.radiusMeters || 3396190);
-  const nice = [10, 20, 50, 100, 200, 500, 1000, 2000, 5000, 10000, 20000].filter((n) => n <= meters * 1.3).at(-1) || 10;
+  const magnitude = 10 ** Math.floor(Math.log10(Math.max(1, meters)));
+  const nice = [1, 2, 5, 10].map((factor) => factor * magnitude).filter((value) => value <= meters * 1.3).at(-1) || magnitude / 2;
   $('#scaleLine').style.width = `${100 * nice / meters}px`;
   $('#scaleText').textContent = fmt.distance(nice);
 }
@@ -713,6 +794,10 @@ function setStatus(message, type = 'ready') {
 }
 
 function updateOverview() {
+  if (state.regionId === 'planet') {
+    $('#missionOverview').innerHTML = `<strong>Planet-wide map</strong><p>Pan and zoom a global MOLA color hillshade. The globe uses the same NASA visual layer.</p><dl><div><dt>Map product</dt><dd>MGS / MOLA, 463 m visual layer</dd></div><div><dt>Recorded traverses</dt><dd>Perseverance and Curiosity</dd></div><div><dt>Local route DEMs</dt><dd>Jezero and Gale studies</dd></div></dl><small>Global color shading is not a cell-by-cell numeric terrain grid. Open a region to inspect local measured coverage.</small>`;
+    return;
+  }
   if (state.regionId === 'gusev') {
     $('#missionOverview').innerHTML = `<strong>Gusev crater map study</strong><dl><div><dt>Documented site</dt><dd>Spirit landing</dd></div><div><dt>Coordinates</dt><dd>${fmt.lat(state.start.lat)}, ${fmt.lon(state.start.lon)}</dd></div><div><dt>Terrain data</dt><dd>No numeric route DEM</dd></div></dl><p>Explore imagery and measure direct distances.</p><small>Imagery does not establish a traversable route or current surface conditions.</small>`;
     return;
@@ -722,6 +807,16 @@ function updateOverview() {
   const stops = [state.start, state.destination, ...(state.waypoint ? [state.waypoint] : [])];
   const allCovered = state.grid && stops.every((point) => { const index = cellAt(state.grid, point); return index !== null && Number.isFinite(state.grid.elevationsMeters[index]); });
   $('#missionOverview').innerHTML = `<strong>${REGIONS[state.regionId].name} ${state.regionId === 'gusev' ? 'map study' : 'traverse study'}</strong><dl><div><dt>Start</dt><dd>${fmt.lat(state.start.lat)}, ${fmt.lon(state.start.lon)}</dd></div><div><dt>Destination</dt><dd>${fmt.lat(state.destination.lat)}, ${fmt.lon(state.destination.lon)}</dd></div><div><dt>Waypoint</dt><dd>${state.waypoint ? `${fmt.lat(state.waypoint.lat)}, ${fmt.lon(state.waypoint.lon)}` : 'None'}</dd></div><div><dt>Slope limit</dt><dd>${state.maxSlope.toFixed(1)}° per cell edge</dd></div><div><dt>Time budget</dt><dd>${fmt.minutes(state.timeBudgetMinutes)} one-way</dd></div><div><dt>Terrain data</dt><dd>${allCovered ? 'All stops covered' : state.grid ? 'Some stops outside coverage' : 'No route DEM'}</dd></div></dl><p>${state.regionId === 'gusev' ? 'Map exploration only' : routeLine}</p><small>${state.regionId === 'gusev' ? 'No terrain-based route is calculated for this region.' : 'Scenario estimate — not a certified EVA assessment.'}</small>`;
+}
+
+function renderRoverHistory() {
+  const records = [
+    { key: 'perseverance', region: 'jezero', title: 'Perseverance', source: 'https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_traverse.json', description: 'JPL MMGIS line geometry; recorded drives through source sol 2022.' },
+    { key: 'curiosity', region: 'gale', title: 'Curiosity', source: 'https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json', description: 'JPL MMGIS line geometry; feed snapshot without sol labels.' },
+    { key: 'spirit', region: 'gusev', title: 'Spirit', source: 'https://mars.nasa.gov/internal_resources/136/', description: 'NASA published traverse map; no coordinate path is drawn in this app.' },
+    { key: 'opportunity', region: 'planet', title: 'Opportunity', source: 'https://science.nasa.gov/photojournal/opportunitys-final-traverse-map/', description: 'NASA final traverse map; no coordinate path is drawn in this app.' },
+  ].filter((record) => state.regionId === 'planet' || record.region === state.regionId);
+  $('#roverHistory').innerHTML = records.map((record) => `<article><strong>${record.title}</strong><p>${record.description}</p>${state.traverses[record.key] ? `<small>${state.traverses[record.key].sourceFeatureCount.toLocaleString()} source segments · simplified for display</small>` : ''}<a href="${record.source}" target="_blank" rel="noopener">NASA/JPL source ${icon('external-link')}</a></article>`).join('');
 }
 
 function readScenarios() {
@@ -790,7 +885,7 @@ function restoreScenario(id) {
 
 function renderSites() {
   const query = $('#siteSearch').value.trim().toLowerCase();
-  const matches = SITES.filter((site) => site.region === state.regionId && `${site.name} ${site.type} ${site.mission}`.toLowerCase().includes(query));
+  const matches = SITES.filter((site) => (state.regionId === 'planet' || site.region === state.regionId) && `${site.name} ${site.type} ${site.mission}`.toLowerCase().includes(query));
   $('#siteList').innerHTML = matches.length ? matches.map((site) => {
     const sameStart = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.start);
     const sameDestination = state.grid && cellAt(state.grid, site.point) === cellAt(state.grid, state.destination);
@@ -799,6 +894,7 @@ function renderSites() {
   }).join('') : '<p class="site-empty">No cited position matches this search.</p>';
   $('#siteList').querySelectorAll('[data-site-view]').forEach((button) => button.addEventListener('click', () => {
     const site = SITES.find((item) => item.id === button.dataset.siteView);
+    if (state.regionId === 'planet') switchRegion(site.region);
     state.center = { ...site.point }; state.zoom = 13; setViewMode('map'); drawTiles();
   }));
   $('#siteList').querySelectorAll('[data-site-destination]').forEach((button) => button.addEventListener('click', () => {
@@ -934,7 +1030,7 @@ function evidence(key) {
   if (key === 'dem') {
     const grid = state.grid;
     if (!grid) {
-      card.innerHTML = `<div class="evidence-card"><div class="evidence-type">NO NUMERICAL ROUTE DATA</div><h3>${REGIONS[state.regionId].name}</h3><p>${state.regionId === 'gusev' ? 'NASA imagery and the documented Spirit landing position are available here, but no elevation grid is packaged. Elevation, slope, and route safety are unknown in this app.' : 'The terrain package for this region is loading or unavailable.'}</p><div class="evidence-limit"><strong>Routing status</strong><p>Terrain routes and 3D elevation are disabled until a verified numerical DEM is available.</p></div></div>`;
+      card.innerHTML = state.regionId === 'planet' ? `<div class="evidence-card"><div class="evidence-type">GLOBAL VISUAL PRODUCT</div><h3>MOLA color hillshade</h3><p>NASA Mars Trek publishes this Mars Global Surveyor / MOLA rendered layer at 463 m. It covers the planet in 2D and on the globe.</p><dl><div><dt>PRODUCT</dt><dd>Mars_MGS_MOLA_ClrShade_merge_global_463m</dd></div><div><dt>APP GLOBE TEXTURE</dt><dd>2048 × 1024 tile composite</dd></div><div><dt>TRAVERSE FEEDS</dt><dd>NASA/JPL MMGIS snapshots</dd></div></dl><div class="evidence-limit"><strong>Interpretation limit</strong><p>Rendered color is not a numerical elevation reading. Planet-wide route slopes and paths are not calculated from this layer.</p></div><a href="https://trek.nasa.gov/tiles/apidoc/trekAPI.html?body=mars" target="_blank" rel="noopener">View NASA layer catalog ↗</a></div>` : `<div class="evidence-card"><div class="evidence-type">NO NUMERICAL ROUTE DATA</div><h3>${REGIONS[state.regionId].name}</h3><p>${state.regionId === 'gusev' ? 'NASA imagery and the documented Spirit landing position are available here, but no elevation grid is packaged. Elevation, slope, and route safety are unknown in this app.' : 'The terrain package for this region is loading or unavailable.'}</p><div class="evidence-limit"><strong>Routing status</strong><p>Terrain routes and 3D elevation are disabled until a verified numerical DEM is available.</p></div></div>`;
     } else {
       card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED NUMERICAL DATA</div><h3>${state.regionId === 'gale' ? 'Gale merged elevation mosaic' : 'Jezero CTX elevation mosaic'}</h3><p>${state.regionId === 'gale' ? 'USGS Gale source combines HiRISE, CTX, HRSC, and MOLA gap coverage. The app selects one source pixel every 20 m in a 6 km landing-area window.' : 'USGS terrain model created from MRO Context Camera observations for Mars 2020 terrain relative navigation.'}</p><dl><div><dt>MISSION / INSTRUMENT</dt><dd>${escapeHtml(grid.mission)} · ${escapeHtml(grid.instrument)}</dd></div><div><dt>SAMPLE SPACING</dt><dd>${grid.resolutionMeters} m</dd></div><div><dt>VALID SAMPLES</dt><dd>${grid.validCells.toLocaleString()}</dd></div><div><dt>PACKAGE SHA-256</dt><dd title="${grid.elevationSha256}">${grid.elevationSha256.slice(0, 12)}…</dd></div><div><dt>PACKAGE CHECK</dt><dd>Verified before routing</dd></div></dl><div class="evidence-limit"><strong>What it supports</strong><p>Exploratory elevation and slope comparison at sample spacing. Small obstacles, soil, and local hazards are unresolved.${state.regionId === 'gale' ? ' Underlying sensor resolution varies across the merged mosaic.' : ''}</p></div><a href="${grid.productPage}" target="_blank" rel="noopener">View USGS source ↗</a></div>`;
     }
@@ -943,7 +1039,7 @@ function evidence(key) {
     card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED REGIONAL ELEVATION</div><h3>Jezero CTX science mosaic</h3><p>USGS/JPL mosaic derived from MRO Context Camera stereo images. The source spans about 89 × 101 km at 20 m pixel spacing.</p><dl><div><dt>MISSION / INSTRUMENT</dt><dd>MRO · Context Camera</dd></div><div><dt>SOURCE GRID</dt><dd>4,456 × 5,067 · 20 m</dd></div><div><dt>APP PACKAGE</dt><dd>80 m measured samples</dd></div><div><dt>VALID SAMPLES</dt><dd>${regional ? regional.validCells.toLocaleString() : 'Loading…'}</dd></div><div><dt>SOURCE SHA-256</dt><dd title="${regional?.sourceSha256 || ''}">${regional ? `${regional.sourceSha256.slice(0, 12)}…` : 'Recorded in metadata'}</dd></div><div><dt>PACKAGE CHECK</dt><dd>${regional ? 'Verified before rendering and routing' : 'Loading…'}</dd></div></dl><div class="evidence-limit"><strong>What it supports</strong><p>Broad route screening when stops extend beyond the 20 m landing-area DEM. Sampling every fourth source pixel means smaller hazards may be missed; this is not a field-safe path.</p></div><a href="${regional?.productPage || 'https://astrogeology.usgs.gov/search/map/mars_2020_science_investigation_ctx_dem_mosaic'}" target="_blank" rel="noopener">View USGS source ↗</a></div>`;
   } else {
     const layer = MAP_LAYERS[key === 'ctx' ? REGIONS[state.regionId].ctx : key === 'hirise' ? REGIONS[state.regionId].hirise : key];
-    card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED ORBITAL PRODUCT</div><h3>${escapeHtml(layer.title)}</h3><p>Displayed through NASA Mars Trek WMTS. This visual layer is separate from the numerical terrain grid used for routing.</p><dl><div><dt>MISSION</dt><dd>${escapeHtml(layer.mission)}</dd></div><div><dt>INSTRUMENT</dt><dd>${escapeHtml(layer.instrument)}</dd></div><div><dt>RESOLUTION</dt><dd>${escapeHtml(layer.resolution)}</dd></div></dl><div class="evidence-limit"><strong>Interpretation limit</strong><p>${escapeHtml(layer.limitation)}</p></div><a href="${layer.link}" target="_blank" rel="noopener">View NASA layer catalog ↗</a></div>`;
+    card.innerHTML = `<div class="evidence-card"><div class="evidence-type">OBSERVED ORBITAL PRODUCT</div><h3>${escapeHtml(layer.title)}</h3><p>Displayed through ${layer === MAP_LAYERS.globalCtx ? 'ArcGIS OnMars tiles linked from the Mars Trek catalog' : 'NASA Mars Trek WMTS'}. This visual layer is separate from the numerical terrain grid used for routing.</p><dl><div><dt>MISSION</dt><dd>${escapeHtml(layer.mission)}</dd></div><div><dt>INSTRUMENT</dt><dd>${escapeHtml(layer.instrument)}</dd></div><div><dt>RESOLUTION</dt><dd>${escapeHtml(layer.resolution)}</dd></div></dl><div class="evidence-limit"><strong>Interpretation limit</strong><p>${escapeHtml(layer.limitation)}</p></div><a href="${layer.link}" target="_blank" rel="noopener">View NASA layer catalog ↗</a></div>`;
   }
 }
 
@@ -1008,11 +1104,12 @@ function exportBrief() {
 
 function zoom(change) {
   if (state.viewMode === 'terrain') {
-    state.terrainView.zoom = Math.min(1.8, Math.max(.62, state.terrainView.zoom * (change > 0 ? 1.13 : .88)));
+    if (state.regionId === 'planet') state.globeView.zoom = Math.min(1.65, Math.max(.7, state.globeView.zoom * (change > 0 ? 1.12 : .89)));
+    else state.terrainView.zoom = Math.min(1.8, Math.max(.62, state.terrainView.zoom * (change > 0 ? 1.13 : .88)));
     scheduleTerrainRender();
     return;
   }
-  state.zoom = Math.min(16, Math.max(7, state.zoom + change)); drawTiles();
+  state.zoom = Math.min(16, Math.max(state.regionId === 'planet' ? 0 : 7, state.zoom + change)); drawTiles();
 }
 
 function switchRegion(regionId) {
@@ -1031,9 +1128,9 @@ function switchRegion(regionId) {
   state.destination = { ...region.destination };
   state.waypoint = null;
   state.center = { lat: (region.start.lat + region.destination.lat) / 2, lon: (region.start.lon + region.destination.lon) / 2 };
-  state.zoom = regionId === 'gusev' ? 11 : 13;
+  state.zoom = regionId === 'planet' ? 1.5 : regionId === 'gusev' ? 11 : 13;
   state.pick = 'destination';
-  state.basemap = 'ctx';
+  state.basemap = regionId === 'planet' ? 'mola' : 'ctx';
   state.hirise = false;
   state.inspection = null;
   state.measurePoints = [];
@@ -1042,15 +1139,25 @@ function switchRegion(regionId) {
   $('#mapRegionLabel').textContent = `${region.name} map`;
   $('#mapBadgeRegion').textContent = region.name;
   $('#map').setAttribute('aria-label', `Interactive ${region.name} map. Use arrow keys to pan and plus or minus to zoom.`);
-  $('#regionStatus').textContent = regionId === 'jezero' ? '20 m landing terrain and 80 m regional terrain.' : regionId === 'gale' ? '6 km landing-area DEM at 20 m sample spacing.' : 'Orbital imagery and documented landing site; routes unavailable.';
-  $('#setupEyebrow').textContent = regionId === 'gusev' ? 'Map study' : 'Route setup';
-  $('#workspaceTitle').textContent = regionId === 'gusev' ? 'Explore Gusev' : 'Plan a route';
-  $('#workspaceIntro').textContent = regionId === 'gusev' ? 'Inspect the documented Spirit landing site and measure direct distances on the map.' : 'Choose a start and destination, then compare paths across measured terrain.';
-  $('#routeSetupControls').hidden = regionId === 'gusev';
-  $('#resultsBar').hidden = regionId === 'gusev';
-  $('#routeCards').hidden = regionId === 'gusev';
+  $('#regionStatus').textContent = regionId === 'planet' ? 'Global MOLA map and globe · rover mission locations.' : regionId === 'jezero' ? '20 m landing terrain and 80 m regional terrain.' : regionId === 'gale' ? '6 km landing-area DEM at 20 m sample spacing.' : 'Orbital imagery and documented landing site; routes unavailable.';
+  $('#setupEyebrow').textContent = regionId === 'planet' ? 'Planet explorer' : regionId === 'gusev' ? 'Map study' : 'Route setup';
+  $('#workspaceTitle').textContent = regionId === 'planet' ? 'Explore Mars' : regionId === 'gusev' ? 'Explore Gusev' : 'Plan a route';
+  $('#workspaceIntro').textContent = regionId === 'planet' ? 'Pan the global map or turn the globe, then open a region for local terrain evidence.' : regionId === 'gusev' ? 'Inspect the documented Spirit landing site and measure direct distances on the map.' : 'Choose a start and destination, then compare paths across measured terrain.';
+  $('#routeSetupControls').hidden = regionId === 'gusev' || regionId === 'planet';
+  $('#planetControls').hidden = regionId !== 'planet';
+  $('#planetBar').hidden = regionId !== 'planet';
+  $('#resultsBar').hidden = regionId === 'gusev' || regionId === 'planet';
+  $('#routeCards').hidden = regionId === 'gusev' || regionId === 'planet';
+  $('#roverLegend').hidden = regionId === 'gusev' || regionId === 'planet';
+  $('#coverageKey').hidden = regionId === 'planet';
+  $('#directionsHeading').textContent = regionId === 'planet' ? 'Recorded drives' : 'Follow the route';
+  $('#directionsIntro').textContent = regionId === 'planet' ? 'Historical rover traverses are displayed from JPL public map feeds. Zoom into Jezero or Gale to see their paths.' : 'Select a checkpoint to locate it on the 2D map. Headings are measured clockwise from north.';
+  $('#evidenceHeading').textContent = regionId === 'planet' ? 'Sources for this view' : 'Data behind this route';
+  $('#evidenceIntro').textContent = regionId === 'planet' ? 'Check the global map product and the limits of a rendered color surface.' : 'Source records and limits for the map and route calculations.';
+  document.querySelector('.source-tabs [data-evidence="dem"]').textContent = regionId === 'planet' ? 'MOLA' : 'Route DEM';
+  document.querySelector('[data-view="terrain"]').textContent = regionId === 'planet' ? '3D globe' : '3D elevation';
   $('#ctxLayerDetail').textContent = regionId === 'jezero' ? 'MRO · 6 m Jezero mosaic' : regionId === 'gale' ? 'MRO · Gale mosaic' : 'MRO · global uncontrolled mosaic';
-  $('#hiriseLayerDetail').textContent = regionId === 'jezero' ? 'MRO · 25 cm Jezero mosaic' : regionId === 'gale' ? 'MRO · Curiosity site mosaic' : 'MRO · Columbia Hills only';
+  $('#hiriseLayerDetail').textContent = regionId === 'planet' ? 'Choose a local region' : regionId === 'jezero' ? 'MRO · 25 cm Jezero mosaic' : regionId === 'gale' ? 'MRO · Curiosity site mosaic' : 'MRO · Columbia Hills only';
   $('#terrainModeChip').textContent = regionId === 'gale' ? '3D / MERGED DEM' : '3D / CTX DEM';
   $('#regionalKeyGroup').hidden = regionId !== 'jezero';
   $('#roverBtn').innerHTML = `${regionId === 'jezero' ? 'Use Sol 464 location' : 'Use study point'} ${icon('arrow-up-right')}`;
@@ -1060,12 +1167,13 @@ function switchRegion(regionId) {
   $('#scienceCopy').textContent = region.science;
   $('#scienceSource').href = region.scienceSource;
   $('#siteSearch').value = '';
-  document.querySelector('input[name="basemap"][value="ctx"]').checked = true;
+  document.querySelector(`input[name="basemap"][value="${state.basemap}"]`).checked = true;
   $('#hiriseToggle').checked = false;
+  $('#hiriseToggle').disabled = regionId === 'planet';
   document.querySelector('[data-evidence="regional"]').hidden = regionId !== 'jezero';
   document.querySelector('[data-scope="regional"]').disabled = !state.regionalGrid;
   $('#fitRegion').disabled = !state.regionalGrid;
-  document.querySelector('[data-view="terrain"]').disabled = !state.terrainMesh;
+  document.querySelector('[data-view="terrain"]').disabled = regionId !== 'planet' && !state.terrainMesh;
   for (const id of ['pickStart', 'pickDestination', 'pickWaypoint', 'landingBtn', 'roverBtn', 'applyCoords']) $(`#${id}`).disabled = !state.grid;
   for (const id of ['slopeRange', 'speedRange', 'budgetRange', 'saveScenario']) $(`#${id}`).disabled = !state.grid;
   $('#exportBtn').disabled = !state.grid;
@@ -1073,11 +1181,12 @@ function switchRegion(regionId) {
   $('#map').classList.toggle('no-terrain', !state.grid);
   if (state.grid) setTerrainScope('local');
   setViewMode('map');
-  selectMapTool(state.grid ? 'route' : 'measure');
+  selectMapTool(state.grid ? 'route' : regionId === 'planet' ? 'explore' : 'measure');
   updatePointLabels();
   updateCoverageInfo();
   renderMapAnalysis();
   renderSites();
+  renderRoverHistory();
   renderScenarios();
   evidence('dem');
   if (state.grid) {
@@ -1086,22 +1195,45 @@ function switchRegion(regionId) {
     calculate();
   } else {
     $('#calculateBtn').disabled = true;
-    if (regionId === 'gusev') { state.center = { ...region.start }; state.zoom = 11; drawTiles(); }
+    if (regionId === 'planet') { state.center = { lat: 0, lon: 35 }; state.zoom = 1.5; drawTiles(); globeAssetReady.then(() => { if (state.regionId === 'planet' && state.viewMode === 'terrain') { if (state.terrainFrame) cancelAnimationFrame(state.terrainFrame); state.terrainFrame = null; scheduleTerrainRender(); } }); }
+    else if (regionId === 'gusev') { state.center = { ...region.start }; state.zoom = 11; drawTiles(); }
     else fitPoints([region.start, region.destination], .65);
-    if (regionId === 'gusev') {
-      $('#routeGuide').innerHTML = '<p>Directions need a measured elevation route. Use the 2D map to measure direct distance here.</p>';
-      $('#routeInsight').innerHTML = '<strong>No route terrain for Gusev</strong><p>Orbital imagery cannot establish elevation or a traversable path in this app.</p>';
+    if (regionId === 'gusev' || regionId === 'planet') {
+      $('#routeGuide').innerHTML = regionId === 'planet' ? '<p>Open Jezero or Gale to see the recorded JPL rover path at local scale. The bright planned paths there are separate model outputs.</p>' : '<p>Directions need a measured elevation route. Use the 2D map to measure direct distance here.</p>';
+      $('#routeInsight').innerHTML = regionId === 'planet' ? '<strong>Global context only</strong><p>No planet-wide route metrics are calculated from the rendered MOLA hillshade.</p>' : '<strong>No route terrain for Gusev</strong><p>Orbital imagery cannot establish elevation or a traversable path in this app.</p>';
     }
-    setStatus(regionId === 'gusev' ? 'Gusev imagery is ready. DEM routing is unavailable in this region.' : 'Loading Gale elevation data…', regionId === 'gusev' ? 'ready' : 'loading');
+    setStatus(regionId === 'planet' ? 'Global NASA map ready. Rover traverse snapshots loading…' : regionId === 'gusev' ? 'Gusev imagery is ready. DEM routing is unavailable in this region.' : 'Loading Gale elevation data…', regionId === 'planet' || regionId === 'gusev' ? 'ready' : 'loading');
   }
 }
 
-$('#regionSelect').addEventListener('change', (event) => switchRegion(event.target.value));
+$('#regionSelect').addEventListener('change', (event) => { switchRegion(event.target.value); setPlanOpen(false); });
+document.querySelectorAll('[data-open-region]').forEach((button) => button.addEventListener('click', () => { switchRegion(button.dataset.openRegion); setPlanOpen(false); }));
+$('#planetSearchForm').addEventListener('submit', (event) => {
+  event.preventDefault();
+  const query = $('#planetSearch').value.trim();
+  const named = PLANET_MISSIONS.find((mission) => mission.name.toLowerCase().includes(query.toLowerCase()) && query.length > 2);
+  if (named?.region) { switchRegion(named.region); return; }
+  if (named) { state.center = { ...named.point }; state.zoom = 8; setViewMode('map'); drawTiles(); return; }
+  const pair = query.match(/^([+-]?\d+(?:\.\d+)?)\s*[, ]\s*([+-]?\d+(?:\.\d+)?)$/);
+  if (!pair) { setStatus('Enter latitude, longitude as signed degrees, or a rover name such as Jezero.', 'error'); return; }
+  const lat = Number(pair[1]), lon = Number(pair[2]);
+  if (Math.abs(lat) > 90 || Math.abs(lon) > 180) { setStatus('Latitude must be −90 to 90 and longitude −180 to 180.', 'error'); return; }
+  state.center = { lat, lon }; state.zoom = 7;
+  setViewMode('map'); drawTiles();
+  setStatus(`Viewing ${fmt.lat(lat)}, ${fmt.lon(lon)} on the global visual layer.`);
+});
+for (const id of ['showTraverses', 'showTraversesMap']) $(`#${id}`).addEventListener('change', (event) => {
+  state.showTraverses = event.target.checked;
+  $('#showTraverses').checked = state.showTraverses;
+  $('#showTraversesMap').checked = state.showTraverses;
+  drawOverlay();
+});
 $('#landingBtn').addEventListener('click', () => setPoint('start', REGIONS[state.regionId].start));
 $('#roverBtn').addEventListener('click', () => setPoint('destination', REGIONS[state.regionId].destination));
 $('#pickStart').addEventListener('click', () => { state.pick = 'start'; setViewMode('map'); selectMapTool('route'); updatePointLabels(); });
 $('#pickDestination').addEventListener('click', () => { state.pick = 'destination'; setViewMode('map'); selectMapTool('route'); updatePointLabels(); });
 $('#pickWaypoint').addEventListener('click', () => { state.pick = 'waypoint'; setViewMode('map'); selectMapTool('route'); updatePointLabels(); });
+for (const id of ['pickStart', 'pickDestination', 'pickWaypoint']) $(`#${id}`).addEventListener('click', () => { setPlanOpen(false); $('#map').focus(); });
 $('#clearWaypoint').addEventListener('click', () => { state.waypoint = null; state.pick = 'destination'; invalidateRoutes(); updatePointLabels(); renderSites(); drawOverlay(); setStatus('Waypoint cleared. Calculate to update routes.'); });
 $('#applyCoords').addEventListener('click', () => setPoint(state.pick, { lat: Number($('#latInput').value), lon: Number($('#lonInput').value) }));
 $('#slopeRange').addEventListener('input', (e) => { state.maxSlope = Number(e.target.value); $('#slopeValue').textContent = `${state.maxSlope.toFixed(1)}°`; });
@@ -1109,7 +1241,7 @@ $('#slopeRange').addEventListener('change', calculate);
 $('#speedRange').addEventListener('input', (e) => { state.speed = Number(e.target.value); $('#speedValue').textContent = `${state.speed.toFixed(2)} m/s`; });
 $('#speedRange').addEventListener('change', calculate);
 $('#budgetRange').addEventListener('input', (e) => { state.timeBudgetMinutes = Number(e.target.value); $('#budgetValue').textContent = fmt.minutes(state.timeBudgetMinutes); if (state.routes.shortest) updateResults(); else updateOverview(); });
-$('#calculateBtn').addEventListener('click', calculate);
+$('#calculateBtn').addEventListener('click', () => { calculate(); setPlanOpen(false); });
 $('#saveScenario').addEventListener('click', saveScenario);
 $('#siteSearch').addEventListener('input', renderSites);
 $('#exportBtn').addEventListener('click', exportBrief);
@@ -1168,7 +1300,7 @@ map.addEventListener('wheel', (e) => { e.preventDefault(); zoom(e.deltaY < 0 ? 1
 map.addEventListener('pointerdown', (e) => {
   if (e.target.closest('button, a, .map-toolbox, .map-analysis') || e.button !== 0) return;
   if (state.viewMode === 'terrain') {
-    state.terrainPointer = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: state.terrainView.yaw, pitch: state.terrainView.pitch };
+    state.terrainPointer = { id: e.pointerId, x: e.clientX, y: e.clientY, yaw: state.terrainView.yaw, pitch: state.terrainView.pitch, lon: state.globeView.lon, lat: state.globeView.lat, moved: false };
     map.classList.add('dragging-terrain');
     map.setPointerCapture(e.pointerId);
     return;
@@ -1178,11 +1310,24 @@ map.addEventListener('pointerdown', (e) => {
 });
 map.addEventListener('pointermove', (e) => {
   if (state.viewMode === 'terrain') {
-    $('#cursorCoords').textContent = `3D elevation / ${REGIONS[state.regionId].name}`;
-    if (!state.terrainPointer || state.terrainPointer.id !== e.pointerId) return;
+    $('#cursorCoords').textContent = `${state.regionId === 'planet' ? '3D globe' : '3D elevation'} / ${REGIONS[state.regionId].name}`;
+    if (!state.terrainPointer || state.terrainPointer.id !== e.pointerId) {
+      if (state.regionId === 'planet') {
+        const rect = map.getBoundingClientRect();
+        const x = e.clientX - rect.left, y = e.clientY - rect.top;
+        map.classList.toggle('globe-marker-hover', PLANET_MISSIONS.some(({ region, point }) => { const projected = region && globeSiteScreen(map.clientWidth, map.clientHeight, state.globeView, point); return projected && Math.hypot(projected.x - x, projected.y - y) < 20; }));
+      }
+      return;
+    }
     if (e.pointerType === 'mouse' && !(e.buttons & 1)) { state.terrainPointer = null; map.classList.remove('dragging-terrain'); return; }
-    state.terrainView.yaw = state.terrainPointer.yaw + (e.clientX - state.terrainPointer.x) * .009;
-    state.terrainView.pitch = Math.min(1.22, Math.max(.28, state.terrainPointer.pitch + (e.clientY - state.terrainPointer.y) * .007));
+    if (Math.hypot(e.clientX - state.terrainPointer.x, e.clientY - state.terrainPointer.y) > 4) state.terrainPointer.moved = true;
+    if (state.regionId === 'planet') {
+      state.globeView.lon = state.terrainPointer.lon - (e.clientX - state.terrainPointer.x) * .3;
+      state.globeView.lat = Math.min(82, Math.max(-82, state.terrainPointer.lat + (e.clientY - state.terrainPointer.y) * .3));
+    } else {
+      state.terrainView.yaw = state.terrainPointer.yaw + (e.clientX - state.terrainPointer.x) * .009;
+      state.terrainView.pitch = Math.min(1.22, Math.max(.28, state.terrainPointer.pitch + (e.clientY - state.terrainPointer.y) * .007));
+    }
     scheduleTerrainRender();
     return;
   }
@@ -1199,7 +1344,19 @@ map.addEventListener('pointermove', (e) => {
 });
 map.addEventListener('pointerup', (e) => {
   if (state.viewMode === 'terrain') {
-    if (state.terrainPointer?.id === e.pointerId) { state.terrainPointer = null; map.classList.remove('dragging-terrain'); }
+    if (state.terrainPointer?.id === e.pointerId) {
+      const pointer = state.terrainPointer;
+      state.terrainPointer = null;
+      map.classList.remove('dragging-terrain');
+      if (state.regionId === 'planet') {
+        if (!pointer.moved) {
+          const rect = map.getBoundingClientRect();
+          const x = e.clientX - rect.left, y = e.clientY - rect.top;
+          const mission = PLANET_MISSIONS.find(({ region, point }) => { const projected = region && globeSiteScreen(map.clientWidth, map.clientHeight, state.globeView, point); return projected && Math.hypot(projected.x - x, projected.y - y) < 20; });
+          if (mission) switchRegion(mission.region);
+        } else scheduleTerrainRender();
+      }
+    }
     return;
   }
   if (!state.pointer || state.pointer.id !== e.pointerId) return;
@@ -1216,10 +1373,10 @@ map.addEventListener('lostpointercapture', (e) => {
 });
 map.addEventListener('keydown', (e) => {
   if (state.viewMode === 'terrain') {
-    if (e.key === 'ArrowLeft') state.terrainView.yaw -= .08;
-    else if (e.key === 'ArrowRight') state.terrainView.yaw += .08;
-    else if (e.key === 'ArrowUp') state.terrainView.pitch = Math.max(.28, state.terrainView.pitch - .06);
-    else if (e.key === 'ArrowDown') state.terrainView.pitch = Math.min(1.22, state.terrainView.pitch + .06);
+    if (e.key === 'ArrowLeft') state.regionId === 'planet' ? state.globeView.lon -= 5 : state.terrainView.yaw -= .08;
+    else if (e.key === 'ArrowRight') state.regionId === 'planet' ? state.globeView.lon += 5 : state.terrainView.yaw += .08;
+    else if (e.key === 'ArrowUp') state.regionId === 'planet' ? state.globeView.lat = Math.min(82, state.globeView.lat + 5) : state.terrainView.pitch = Math.max(.28, state.terrainView.pitch - .06);
+    else if (e.key === 'ArrowDown') state.regionId === 'planet' ? state.globeView.lat = Math.max(-82, state.globeView.lat - 5) : state.terrainView.pitch = Math.min(1.22, state.terrainView.pitch + .06);
     else if (e.key === '+' || e.key === '=') zoom(1);
     else if (e.key === '-') zoom(-1);
     else return;
@@ -1240,11 +1397,22 @@ new ResizeObserver(drawTiles).observe(map);
 
 const initialRegion = new URLSearchParams(window.location.search).get('region');
 if (REGIONS[initialRegion] && initialRegion !== 'jezero') switchRegion(initialRegion);
+else if (!initialRegion) switchRegion('planet');
 else updatePointLabels();
 renderScenarios();
 renderSites();
 evidence('dem');
 drawTiles();
+Promise.all(['perseverance', 'curiosity'].map(async (rover) => {
+  const response = await fetch(new URL(`../public/data/${rover}-traverse-display.json`, import.meta.url));
+  if (!response.ok) throw new Error(`${rover} traverse HTTP ${response.status}`);
+  return [rover, await response.json()];
+})).then((entries) => {
+  state.traverses = Object.fromEntries(entries);
+  drawOverlay();
+  renderRoverHistory();
+  setStatus('NASA map and JPL rover traverse snapshots ready.');
+}).catch((error) => console.warn(`Recorded traverse unavailable: ${error.message}`));
 fetch(new URL('../public/data/jezero-grid-meta.json', import.meta.url)).then((response) => {
   if (!response.ok) throw new Error(`HTTP ${response.status}`);
   return response.json();

@@ -1,14 +1,14 @@
 # Mars Atlas — copy-ready project fields
 
-Prepared 15 November 2026. This is a draft for a future submission; check the applicable year's form and challenge rules before entering it. Every link below is a full public URL. NASA mission observations and USGS processed products are separated by producing resource.
+Updated 16 November 2026. This is a draft for a future submission; check the applicable year's form and challenge rules before entering it. Every link below is a full public URL. NASA mission observations and USGS processed products are separated by producing resource.
 
 ## Project Details
 
-Mars Atlas is an independent interactive Mars research workspace for studying orbital imagery, measured elevation, and exploratory surface routes. Users can examine Jezero, Gale, and Gusev craters, switch image layers, inspect published mission locations, measure direct distances, and compare model routes where numerical elevation grids are packaged. Jezero supports a 20 m landing-area terrain grid and an 80 m sampled regional grid; Gale supports a 20 m sampled landing window from a USGS merged DEM. Gusev provides imagery and a documented Spirit landing position but does not offer elevation routing without a verified numeric DEM.
+Mars Atlas is an interactive way to explore Mars and see where the map's information comes from. It opens on a planet-wide NASA MOLA map, with a 3D globe and labelled rover landing regions. You can zoom into Jezero, Gale, and Gusev, switch orbital image layers, inspect published mission locations, and compare recorded rover drives with new route studies. The historical Perseverance and Curiosity lines come from JPL map feeds. They are displayed separately from routes our software calculates.
 
-For Jezero and Gale, users choose a start, destination, and optional waypoint, then set a maximum sampled slope, assumed speed, and one-way time budget. The site computes route alternatives and reports distance, ascent, maximum sampled slope, an elevation profile, and north-referenced checkpoint headings and turns. A 3D view renders measured terrain as a sampled mesh. The evidence panel stays open and links each layer or terrain product to its source. Exported briefs include the active settings, computed results, source identifiers, and limitations.
+For Jezero and Gale, you can choose a start, destination, and optional waypoint, then set a sampled slope limit, assumed speed, and one-way time budget. Jezero has a 20 m landing-area DEM and an 80 m sampled regional DEM; Gale has a 20 m sampled window from a USGS merged DEM. The app compares route alternatives and reports distance, ascent, maximum sampled slope, an elevation profile, and north-referenced turns and headings. These values are calculations from the cited terrain, not NASA mission measurements. Gusev shows imagery and Spirit's landing position, but does not invent elevation routes where no numerical grid is packaged. The evidence panel stays open and links each result to its source record, and the export keeps the settings, data identifiers, and limits together.
 
-The benefit is a transparent way to explore how terrain data and assumptions affect a route study. It can support public learning and early research discussion; it is not an operational rover or astronaut navigation tool. We used HTML, CSS, JavaScript, a Web Worker, Python, NumPy, Rasterio, Node.js, NASA Mars Trek imagery, USGS terrain mosaics derived from NASA observations, an upstream ESA Mars Express HRSC contribution to Gale, Lucide icons, GitHub, and Vercel. No special hardware was required. The creative feature is the combination of interactive 2D/3D terrain comparison, explicit no-data boundaries, checkpoint bearings, and product-level evidence in one interface. We considered source provenance, resolution, missing cells, mixed sensor inputs, visual versus numerical data, route model assumptions, and the risk of implying field safety.
+We made Mars Atlas for people who want to ask better questions of Mars data. Seeing the rover's real path beside a calculated alternative can make the terrain and the model's assumptions easier to understand. It can support learning and early research discussion; it is not a rover command system or astronaut navigation tool. We built it with HTML, CSS, JavaScript, a Web Worker, Python, Node.js, NumPy, Rasterio, Pillow, NASA Mars Trek imagery, JPL traverse feeds, USGS terrain mosaics, Lucide icons, GitHub, and Vercel. The Gale mosaic also includes upstream ESA Mars Express HRSC input. No special hardware was required. We paid particular attention to source links, resolution, missing cells, and the difference between a rendered image and a measured elevation grid.
 
 Project: https://marsatlas-map.vercel.app/  
 Workspace: https://marsatlas-map.vercel.app/app/  
@@ -18,7 +18,7 @@ Code: https://github.com/gravatar123a/mars-atlas
 
 ## Use of Super Intelligence (SI)
 
-Select the options corresponding to **code and data** and **written text/content**, if offered by the form. OpenAI Codex assisted in writing and reviewing application code, interface copy, documentation, source-register descriptions, and the PowerPoint guide. Human direction and review determined project scope, checked source provenance, and tested the running app. The scientific source rasters and live imagery are externally published; local terrain packages and route values are deterministic software derivatives, not SI fabricated observations. No SI-generated image, video, or audio is included. Screenshots in the guide are captures of the running app with editable circle annotations. The public source page, package metadata, and this statement disclose SI use. No NASA logo, flag, or mission insignia is used in generated content.
+Select the options corresponding to **code and data** and **written text/content**, if offered by the form. OpenAI Codex assisted in writing and reviewing application code, interface copy, documentation, source-register descriptions, and the PowerPoint guide. Human direction and review determined project scope, checked source provenance, and tested the running app. The scientific source rasters and live imagery are externally published; local terrain packages, simplified rover display paths, and route values are deterministic software derivatives, not SI fabricated observations. No SI-generated image, video, or audio is included. Guide screenshots are captures of the running app with a few editable rectangular highlights. The public source page, package metadata, and this statement disclose SI use. No NASA logo, flag, or mission insignia is used in generated content.
 
 ## NASA Data — enter one link per row
 
@@ -29,6 +29,10 @@ Select the options corresponding to **code and data** and **written text/content
 | Jezero HiRISE mosaic (Mars Trek) | https://trek.nasa.gov/tiles/Mars/EQ/JEZ_hirise_soc_006_orthoMosaic_25cm_Eqc_latTs0_lon0_first_dd/1.0.0/WMTSCapabilities.xml |
 | THEMIS daytime IR controlled mosaic (Mars Trek) | https://trek.nasa.gov/tiles/Mars/EQ/THEMIS_DayIR_ControlledMosaics_100m_v2_oct2018/1.0.0/WMTSCapabilities.xml |
 | MOLA global color hillshade (Mars Trek) | https://trek.nasa.gov/tiles/Mars/EQ/Mars_MGS_MOLA_ClrShade_merge_global_463m/1.0.0/WMTSCapabilities.xml |
+| Perseverance traverse geometry (JPL MMGIS) | https://mars.nasa.gov/mmgis-maps/M20/Layers/json/M20_traverse.json |
+| Curiosity traverse geometry (JPL MMGIS) | https://mars.nasa.gov/mmgis-maps/MSL/Layers/json/MSL_traverse.json |
+| Spirit and Opportunity traverse maps (NASA) | https://mars.nasa.gov/internal_resources/136/ |
+| Opportunity final traverse map (NASA) | https://science.nasa.gov/photojournal/opportunitys-final-traverse-map/ |
 | Gale CTX mosaic (Mars Trek) | https://trek.nasa.gov/tiles/Mars/EQ/Gale_CTX_BlockAdj_dd/1.0.0/WMTSCapabilities.xml |
 | Curiosity HiRISE mosaic (Mars Trek) | https://trek.nasa.gov/tiles/Mars/EQ/curiosity_hirise_mosaic/1.0.0/WMTSCapabilities.xml |
 | Global CTX mosaic (Mars Trek) | https://trek.nasa.gov/tiles/Mars/EQ/CTX_beta01_uncontrolled_5m_Caltech/1.0.0/WMTSCapabilities.xml |
@@ -40,6 +44,7 @@ Select the options corresponding to **code and data** and **written text/content
 | Mars Science Laboratory landing analysis | https://ntrs.nasa.gov/api/citations/20130011617/downloads/20130011617.pdf |
 | Curiosity location map | https://science.nasa.gov/mission/msl-curiosity/location-map/ |
 | Spirit mission landing record | https://ntrs.nasa.gov/citations/20040191840 |
+| Opportunity landing coordinates (NASA/JPL) | https://mars.nasa.gov/internal_resources/143/ |
 | NASA Space Apps 2026 challenge brief | https://www.spaceappschallenge.org/2026/challenges/interplanetary-survival-guide-martian-map/ |
 | NASA images and media usage guidelines | https://www.nasa.gov/nasa-brand-center/images-and-media/ |
 
@@ -66,6 +71,7 @@ Select the options corresponding to **code and data** and **written text/content
 | Requests | https://requests.readthedocs.io/ |
 | truststore | https://truststore.readthedocs.io/ |
 | Puppeteer Core | https://pptr.dev/ |
+| Pillow | https://pillow.readthedocs.io/ |
 | Google Chrome | https://www.google.com/chrome/ |
 | GitHub | https://github.com/gravatar123a/mars-atlas |
 | Vercel | https://vercel.com/ |

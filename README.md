@@ -1,6 +1,6 @@
 # MARS//ATLAS
 
-An independent Marswalk research prototype that turns planetary observations into inspectable route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
+An independent Mars research prototype with a planet-wide map and globe, published rover history, and inspectable local route comparisons. It is **not** an official NASA tool or certified human-exploration navigation system.
 
 **Live site:** https://marsatlas-map.vercel.app/  
 **Workspace:** https://marsatlas-map.vercel.app/app/  
@@ -9,8 +9,10 @@ An independent Marswalk research prototype that turns planetary observations int
 
 ## What works
 
-- Region selector for Jezero, Gale, and Gusev. Jezero has landing and regional route DEMs; Gale has a 6 × 6 km landing-area route DEM; Gusev currently has cited orbital imagery and the Spirit landing position, with route and 3D controls disabled because no numeric DEM is packaged there.
-- Region links can be shared with `?region=jezero`, `?region=gale`, or `?region=gusev`. Gusev presents a map study with distance measurement and hides route forms that lack numerical terrain support.
+- Planet-wide NASA MOLA color hillshade map, interactive 3D globe, and labelled rover landing regions. The globe is a visualization of NASA tiles, not a global numeric DEM.
+- Region selector for the planet, Jezero, Gale, and Gusev. Jezero has landing and regional route DEMs; Gale has a 6 × 6 km landing-area route DEM; Gusev currently has cited orbital imagery and the Spirit landing position, with local route and elevation controls disabled because no numeric DEM is packaged there.
+- Historical Perseverance and Curiosity traverse overlays from public JPL MMGIS GeoJSON feeds, simplified for display and distinguished from computed route choices. NASA Spirit and Opportunity traverse maps are linked in mission history. Source and display SHA-256 hashes are recorded in `public/data/planet-provenance.json`.
+- Region links can be shared with `?region=planet`, `?region=jezero`, `?region=gale`, or `?region=gusev`. Gusev presents a map study with distance measurement and hides route forms that lack numerical terrain support.
 - Gale routes use measured cells sampled every 20 m from the USGS 1 m Gale merged mosaic. Bradbury Landing is a NASA-published coordinate; the nearby east study point is an explicitly labelled scenario coordinate. The merged source includes MRO HiRISE/CTX, Mars Express HRSC, and MOLA gap coverage, so source detail and uncertainty vary.
 - Interactive Jezero map with NASA Mars Trek CTX basemap, global MOLA visual context, HiRISE and THEMIS overlays, layer opacity, coordinate readout, pan, zoom, reset, and scale bar.
 - Large interactive 3D elevation view with left-button drag orbit, zoom, route overlays, and a labelled 6× vertical exaggeration. Switch between the 20 m landing-area DEM (320 m visual mesh) and a broader USGS/JPL Jezero CTX DEM (89 × 101 km; 80 m transport samples and about 1 km visual mesh). The 2D region-fit control shows the broader overview.
@@ -51,10 +53,11 @@ For Gale, run `python scripts/extract_gale_dem.py`. The script reads byte ranges
 ## Project structure
 
 - `src/main.js` — mission workspace, map layers, evidence cards, interaction, and export.
+- `src/globe.js` — orthographic renderer for the published NASA MOLA visual layer.
 - `src/route-worker.js` — background route calculation for both DEM footprints.
 - `src/terrain.js` — Mars distances, grid coordinates, A* search, slope limits, and route metrics.
 - `src/style.css` — responsive interface.
-- `src/refinement.css` — current visual system and icon sizing.
+- `src/refinement.css` and `src/workspace.css` — visual system and responsive map-first layout.
 - `index.html` — landing page.
 - `app/index.html` — research workspace.
 - `guide/` — annotated web guide and downloadable PowerPoint.
@@ -63,9 +66,11 @@ For Gale, run `python scripts/extract_gale_dem.py`. The script reads byte ranges
 - `public/data/jezero-elevation-u16.bin` — numeric full-footprint elevation package.
 - `public/data/jezero-regional-meta.json` and `jezero-regional-u16.bin` — broader Jezero context terrain and checksums.
 - `public/data/gale-landing-meta.json` and `gale-landing-u16.bin` — Gale landing-area measured terrain and provenance.
+- `public/data/mola-global-z2.jpg`, `*-traverse-display.json`, and `planet-provenance.json` — globe texture, simplified JPL rover history, and exact source hashes.
 - `scripts/extract_dem.py` — reproducible source packaging.
 - `scripts/extract_regional_dem.py` — reproducible regional packaging.
 - `scripts/extract_gale_dem.py` — reproducible Gale packaging.
+- `scripts/prepare-planet-assets.py` — reproducible assembly of NASA MOLA and JPL traverse display assets from downloaded source snapshots.
 - `tests/terrain.test.mjs` — geospatial and route checks.
 
 ## Documentation

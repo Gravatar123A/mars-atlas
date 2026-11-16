@@ -1,5 +1,19 @@
 # Test report
 
+## 2026-11-16 planet map and guide run
+
+| Check | Result |
+| --- | --- |
+| Global map provenance | Automated test matches the checked-in MOLA visual composite to its recorded SHA-256 and verifies the 32 source tile hashes. This is a visual layer, not a numerical global elevation grid. |
+| Rover traverse provenance | Automated tests check source URLs, snapshot and display checksums, and geographic coordinates for the simplified public JPL Perseverance and Curiosity feeds. |
+| Route and terrain checks | `npm test`: **19 passed, 0 failed**, including Jezero and Gale source and routing checks. |
+| Browser interaction | Local Chrome audit opened the global map, searched a coordinate and Jezero, checked route cards and the rover overlay toggle, opened the route drawer, entered local 3D and global globe views, and loaded the guide. No page or console errors were recorded. |
+| Mobile layout | At 390 px width, the map began within 105 px of the top, occupied 574 px vertically, and the document had no horizontal overflow. |
+| Presentation | The 16-slide PowerPoint passed package integrity and presentation layout checks with zero findings. Each slide was rendered and visually inspected. |
+| Static package | `npm run build` passed; the generated `dist/` includes the new planet data and PowerPoint. `git diff --check` passed. |
+
+Global imagery and rover feeds were checked at the recorded source snapshot, not continuously synchronized. The planet view cannot support a global route calculation: numerical route grids are packaged for Jezero and a Gale landing window only. Browser checks cover representative flows and do not establish astronaut or rover operational readiness.
+
 ## 2026-11-15 multi-region run
 
 | Check | Result |
