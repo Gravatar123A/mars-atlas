@@ -105,7 +105,6 @@ app.innerHTML = `
   <div class="shell">
     <header class="topbar">
       <a class="brand" href="../"><span class="brand-mark">${icon('orbit')}</span><span>Mars Atlas</span></a>
-      <button id="openPlan" class="plan-trigger" aria-expanded="false" aria-controls="routeSetupPanel">${icon('route')} <span>Plan route</span></button>
       <div class="topbar-center"><span class="signal-dot"></span> <span id="topRegionLabel">Mars 2020 · Jezero crater</span></div>
       <nav class="topbar-links" aria-label="Site"><a href="../guide/">Guide</a><a href="../resources/">Sources</a></nav>
       <a id="mobileGuideLink" class="mobile-guide-link" href="../guide/">Guide</a>
@@ -164,7 +163,7 @@ app.innerHTML = `
         </div>
       </aside>
       <main class="main-area">
-        <div class="map-topline"><span class="map-live"><span class="signal-dot"></span> <span id="mapRegionLabel">Jezero crater map</span></span><div class="view-mode" role="group" aria-label="Terrain view"><button class="active" data-view="map" aria-pressed="true">2D imagery</button><button data-view="terrain" aria-pressed="false" disabled>3D elevation</button></div><span id="cursorCoords">18.45800°N / 77.43000°E</span></div>
+        <div class="map-topline"><span class="map-live"><span class="signal-dot"></span> <span id="mapRegionLabel">Jezero crater map</span></span><button id="openPlan" class="plan-trigger" aria-expanded="false" aria-controls="routeSetupPanel">${icon('route')} <span>Plan a route</span></button><div class="view-mode" role="group" aria-label="Terrain view"><button class="active" data-view="map" aria-pressed="true">2D imagery</button><button data-view="terrain" aria-pressed="false" disabled>3D elevation</button></div><span id="cursorCoords">18.45800°N / 77.43000°E</span></div>
         <div id="map" class="map" tabindex="0" aria-label="Interactive Jezero Crater map. Use arrow keys to pan and plus or minus to zoom.">
           <div id="tileLayers" class="tile-layers"></div>
           <canvas id="terrain3d" class="terrain-canvas" role="img" aria-label="Three dimensional rendering of the selected measured terrain grid" hidden></canvas>

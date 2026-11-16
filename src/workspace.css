@@ -45,3 +45,7 @@
 @media(max-width:560px){.shell:has(#planetBar:not([hidden])) .topbar-actions{display:none}.shell:has(#planetBar:not([hidden])) .mobile-guide-link{display:inline-flex;margin-left:auto}}
 @media(max-width:1100px){.planet-bar{flex-wrap:wrap}.planet-bar>div{flex-basis:100%}.planet-search{flex:1;min-width:160px}.planet-bar span{display:none}}
 @media(max-width:700px){.planet-bar button{flex:1}.planet-search{flex-basis:100%}}
+.map-topline .plan-trigger{flex:none;min-height:35px;padding:8px 15px;border-color:#b9dce2;background:#a7d9e1;color:#12232c;font-size:12px;font-weight:800;box-shadow:0 2px 10px #030c1240}
+.map-topline .plan-trigger:hover,.map-topline .plan-trigger:focus-visible{border-color:#e9fbfd;background:#d2f1f5;color:#0c1b22}
+.map-topline .plan-trigger .ui-icon{width:16px;height:16px;filter:brightness(0) saturate(100%) invert(10%) sepia(20%) saturate(1050%) hue-rotate(155deg)}
+@media(max-width:560px){.map-topline .map-live{display:none}.map-topline .plan-trigger{min-height:34px;padding:7px 11px;font-size:11px}.map-topline .view-mode{margin-left:auto}}
